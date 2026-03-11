@@ -12,6 +12,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@lucide/astro": "^1.7.0",
     "@monaco-editor/loader": "^1.7.0",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.2",

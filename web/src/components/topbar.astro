@@ -1,0 +1,72 @@
+---
+import { Sun } from "@lucide/astro"
+---
+<div class="bg-neutral-900 h-[8.33vh] w-[100vw] flex">
+    <div class="h-[8.33vh] w-[4.8vw]">
+        <img class="spin-scale-hover p-[12%]" src="/anga.svg" />
+    </div>
+    <div class="h-[8.33vh] text-white ml-[0.5vw]">
+        <p class="text-[3.2vh] font-bold">Anga's</p>
+        <p class="text-[1.8vh]">Online Compiler</p>
+    </div>
+
+    <div class="grow" />
+
+    <div class="h-[8.33vh] w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] text-white px-[1vw]">
+        <label class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[14vw]">
+            <span class="text-[1.3vh] uppercase tracking-wide text-neutral-300">Limits</span>
+            <select
+                id="limits-mode"
+                class="w-full h-[3.3vh] rounded-[0.6vw] border border-neutral-700 bg-neutral-800 text-neutral-200 text-[1.35vh] px-[0.7vw]"
+                onchange="document.getElementById('custom-limits-controls').classList.toggle('hidden', this.value !== 'custom')"
+            >
+                <option value="default" selected>use default (reccomended) limits</option>
+                <option value="custom">use custom limits</option>
+            </select>
+        </label>
+
+        <div id="custom-limits-controls" class="hidden w-[38vw] flex items-center gap-[1vw]">
+            <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[28vw]">
+                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-neutral-300">
+                    <span>Memory Limit</span>
+                    <output id="memory-limit-value" for="memory-limit">32768 KB (32 MB)</output>
+                </div>
+                <input
+                    id="memory-limit"
+                    name="memory-limit"
+                    type="range"
+                    min="8192"
+                    max="131072"
+                    value="32768"
+                    step="1"
+                    class="w-full h-[0.5vh] accent-purple-500 bg-neutral-700 rounded-full"
+                    oninput="const mb=(Number(this.value)/1024).toFixed(3).replace(/\.?0+$/, '');document.getElementById('memory-limit-value').value = `${this.value} KB (${mb} MB)`"
+                />
+            </label>
+
+            <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[22vw]">
+                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-neutral-300">
+                    <span>Time Limit</span>
+                    <output id="time-limit-value" for="time-limit">5 s</output>
+                </div>
+                <input
+                    id="time-limit"
+                    name="time-limit"
+                    type="range"
+                    min="1"
+                    max="60"
+                    value="5"
+                    step="1"
+                    class="w-full h-[0.5vh] accent-purple-500 bg-neutral-700 rounded-full"
+                    oninput="document.getElementById('time-limit-value').value = `${this.value} s`"
+                />
+            </label>
+        </div>
+    </div>
+
+    <div class="h-[8.33vh] w-[4.8vw] flex items-center justify-center">
+        <button class="text-white hover:text-yellow-400 h-[6vh] w-[3.2vw] border rounded-md">
+            <Sun class="w-full h-full p-[20%]" />
+        </button>
+    </div>
+</div>

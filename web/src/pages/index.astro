@@ -1,12 +1,13 @@
 ---
 import "../styles/global.css";
+import Topbar from "../components/topbar.astro";
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.svg" />
+		<link rel="icon" type="image/svg+xml" href="/anga.svg" />
+		<link rel="icon" href="/anga.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Anga's Online Compiler</title>
@@ -20,7 +21,7 @@ import "../styles/global.css";
 		<meta name="twitter:title" content="Anga's Online Compiler" />
 		<meta name="twitter:description" content="Free online compiler for C, C++, Python, and Java with Monaco editor." />
 	</head>
-	<body>
-		<h1>Anga's Online Compiler</h1>
+	<body class="w-screen h-screen overflow-hidden">
+		<Topbar />
 	</body>
 </html>

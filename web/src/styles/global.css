@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+.spin-scale-hover {
+    display: inline-block;
+    transition: transform 0.6s ease-out;
+}
+  
+.spin-scale-hover:hover {
+    animation: spinOnce 0.5s forwards;
+}
+
+@keyframes spinOnce {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+    100% {
+        transform: rotate(360deg) scale(1.2);
+    }
+}
