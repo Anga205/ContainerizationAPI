@@ -26,3 +26,4 @@ pnpm-debug.log*
 bun.lockb
 
 package-lock.json
+.vscode/

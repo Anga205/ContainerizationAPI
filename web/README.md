@@ -1,43 +1,18 @@
-# Astro Starter Kit: Minimal
+# Anga's Online Compiler
 
-```sh
-bun create astro@latest -- --template minimal
-```
+A browser-based compiler for **C, C++, Python, and Java**.  
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## How to use
 
-## 🚀 Project Structure
+1. Go to the [website](https://compiler.anga.codes/)
+2. Select a language.
+3. Write or paste code in the editor.
+4. Add stdin input (optional).
+5. Run the program.
+6. View stdout/stderr output from the compiler runtime.
 
-Inside of your Astro project, you'll see the following folders and files:
+## Execution Constraints
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
-
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
-
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+Code is executed in a controlled environment with fixed resource limits that can be changed via the UI.
+- Limited CPU time (terminates after 60 seconds)
+- Limited memory usage (you can use upto 128MB)

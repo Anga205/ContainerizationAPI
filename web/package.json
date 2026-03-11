@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@monaco-editor/loader": "^1.7.0",
-    "astro": "^6.1.2"
+    "@tailwindcss/vite": "^4.2.2",
+    "astro": "^6.1.2",
+    "tailwindcss": "^4.2.2"
   }
 }
