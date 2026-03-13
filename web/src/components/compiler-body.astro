@@ -1,0 +1,65 @@
+---
+import LanguageSidebar from "./language-sidebar.astro";
+import EditorPane from "./editor-pane.astro";
+import OutputPane from "./output-pane.astro";
+---
+
+<section class="h-11/12 w-screen bg-black text-white">
+  <div class="grid h-full w-full grid-cols-[84px_1fr]">
+    <LanguageSidebar />
+
+    <div class="flex h-full min-w-0">
+      <div id="left-workspace" class="h-full" style="width: 62%">
+        <EditorPane />
+      </div>
+
+      <div
+        id="workspace-divider"
+        class="h-full w-1 cursor-col-resize bg-neutral-800 hover:bg-neutral-600"
+        aria-hidden="true"
+      ></div>
+
+      <div id="right-workspace" class="h-full flex-1 min-w-[240px]">
+        <OutputPane />
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const divider = document.getElementById("workspace-divider");
+  const leftPane = document.getElementById("left-workspace");
+  const rightPane = document.getElementById("right-workspace");
+
+  if (divider && leftPane && rightPane) {
+    const parent = divider.parentElement;
+    let dragging = false;
+
+    const onMouseMove = (event: { clientX: number; }) => {
+      if (!dragging || !parent) return;
+
+      const rect = parent.getBoundingClientRect();
+      const nextLeftWidth = event.clientX - rect.left;
+      const minLeft = 280;
+      const minRight = 240;
+      const maxLeft = rect.width - minRight - divider.offsetWidth;
+      const clampedLeft = Math.min(Math.max(nextLeftWidth, minLeft), maxLeft);
+
+      leftPane.style.width = `${clampedLeft}px`;
+      rightPane.style.width = `${rect.width - clampedLeft - divider.offsetWidth}px`;
+      rightPane.style.flex = "0 0 auto";
+    };
+
+    divider.addEventListener("mousedown", () => {
+      dragging = true;
+      document.body.style.userSelect = "none";
+    });
+
+    window.addEventListener("mousemove", onMouseMove);
+
+    window.addEventListener("mouseup", () => {
+      dragging = false;
+      document.body.style.userSelect = "";
+    });
+  }
+</script>

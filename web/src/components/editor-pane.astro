@@ -1,0 +1,118 @@
+<section class="h-full min-w-[260px] bg-neutral-900" data-pane="left">
+  <div class="flex h-12 border-b border-neutral-800 bg-neutral-950 px-2">
+    <button
+      type="button"
+      class="tab-trigger is-active h-full border-b-2 border-neutral-100 px-4 text-sm font-medium text-neutral-100"
+      data-target="code-editor-panel"
+      aria-selected="true"
+    >
+      code editor
+    </button>
+    <button
+      type="button"
+      class="tab-trigger h-full border-b-2 border-transparent px-4 text-sm font-medium text-neutral-400"
+      data-target="stdin-panel"
+      aria-selected="false"
+    >
+      stdin
+    </button>
+  </div>
+
+  <div class="h-[calc(100%-3rem)]">
+    <div id="code-editor-panel" class="tab-panel h-full">
+      <div id="monaco-editor" class="h-full w-full"></div>
+    </div>
+    <div id="stdin-panel" class="tab-panel hidden h-full p-3">
+      <textarea
+        class="h-full w-full resize-none rounded-md border border-neutral-700 bg-neutral-950 p-3 text-sm text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-neutral-500"
+        placeholder="Provide stdin input here"
+      ></textarea>
+    </div>
+  </div>
+</section>
+
+<script>
+  import loader from "@monaco-editor/loader";
+
+  const monacoLanguageMap: Record<string, string> = {
+    python: "python",
+    java: "java",
+    c: "c",
+    cpp: "cpp"
+  };
+
+  let monacoRef: { editor: { setModelLanguage: (arg0: any, arg1: any) => void; }; } | null = null;
+  let editorRef: { getModel: () => any; layout: () => any; } | null = null;
+
+  const tabTriggers = document.querySelectorAll(".tab-trigger");
+  const tabPanels = document.querySelectorAll(".tab-panel");
+
+  tabTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      const targetId = trigger.getAttribute("data-target");
+
+      tabTriggers.forEach((item) => {
+        item.classList.remove("is-active", "border-neutral-100", "text-neutral-100");
+        item.classList.add("border-transparent", "text-neutral-400");
+        item.setAttribute("aria-selected", "false");
+      });
+
+      tabPanels.forEach((panel) => {
+        panel.classList.add("hidden");
+      });
+
+      trigger.classList.add("is-active", "border-neutral-100", "text-neutral-100");
+      trigger.classList.remove("border-transparent", "text-neutral-400");
+      trigger.setAttribute("aria-selected", "true");
+
+      const targetPanel = document.getElementById(targetId ?? "");
+      if (targetPanel) {
+        targetPanel.classList.remove("hidden");
+      }
+    });
+  });
+
+  const monacoContainer = document.getElementById("monaco-editor");
+
+  const setEditorLanguage = (selectedLanguage: string) => {
+    if (!monacoRef || !editorRef) return;
+
+    const nextLanguage = monacoLanguageMap[selectedLanguage] ?? "python";
+    const model = editorRef.getModel();
+    if (!model) return;
+
+    monacoRef.editor.setModelLanguage(model, nextLanguage);
+  };
+
+  window.addEventListener("compiler-language-change", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+
+    const selectedLanguage = event.detail?.language;
+    if (typeof selectedLanguage !== "string") return;
+
+    setEditorLanguage(selectedLanguage);
+  });
+
+  if (monacoContainer) {
+    loader.init().then((monaco) => {
+      monacoRef = monaco;
+      editorRef = monaco.editor.create(monacoContainer, {
+        value: [
+          "def solve():",
+          "    message = 'Hello from Anga compiler'",
+          "    print(message)",
+          "",
+          "solve()"
+        ].join("\n"),
+        language: "python",
+        theme: "vs-dark",
+        minimap: { enabled: false },
+        fontSize: 14,
+        automaticLayout: true,
+        tabSize: 4
+      });
+
+      window.addEventListener("resize", () => editorRef?.layout());
+    });
+  }
+</script>

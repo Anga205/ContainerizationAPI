@@ -1,0 +1,74 @@
+---
+import pythonLogo from "../assets/python.svg";
+import javaLogo from "../assets/java.svg";
+import cLogo from "../assets/c.svg";
+import cppLogo from "../assets/cplusplus.svg";
+
+const languages = [
+  { key: "python", label: "Python", logo: pythonLogo },
+  { key: "java", label: "Java", logo: javaLogo },
+  { key: "c", label: "C", logo: cLogo },
+  { key: "cpp", label: "C++", logo: cppLogo }
+];
+---
+
+<aside class="h-full w-full border-r border-neutral-800 bg-neutral-950">
+  <ul class="flex flex-col items-center gap-3 p-3">
+    {
+      languages.map((language, index) => (
+        <li>
+          <button
+            type="button"
+            class:list={[
+              "language-button group flex h-14 w-14 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 transition-colors hover:border-neutral-500",
+              index === 0 && "is-selected bg-neutral-800 text-neutral-100"
+            ]}
+            data-language={language.key}
+            aria-pressed={index === 0 ? "true" : "false"}
+            title={language.label}
+          >
+            <language.logo class="language-icon h-8 w-8 text-white" />
+          </button>
+        </li>
+      ))
+    }
+  </ul>
+</aside>
+
+<script>
+  const languageButtons = document.querySelectorAll(".language-button");
+
+  languageButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      languageButtons.forEach((item) => {
+        item.classList.remove("is-selected", "bg-neutral-800", "text-neutral-100", "border-neutral-500");
+        item.classList.add("text-neutral-300");
+        item.setAttribute("aria-pressed", "false");
+      });
+
+      button.classList.add("is-selected", "bg-neutral-800", "text-neutral-100", "border-neutral-500");
+      button.classList.remove("text-neutral-300");
+      button.setAttribute("aria-pressed", "true");
+
+      window.dispatchEvent(
+        new CustomEvent("compiler-language-change", {
+          detail: { language: button.getAttribute("data-language") ?? "python" }
+        })
+      );
+    });
+  });
+
+  window.dispatchEvent(
+    new CustomEvent("compiler-language-change", {
+      detail: { language: "python" }
+    })
+  );
+</script>
+
+<style>
+  .language-icon,
+  .language-icon * {
+    fill: currentColor;
+    stroke: currentColor;
+  }
+</style>
