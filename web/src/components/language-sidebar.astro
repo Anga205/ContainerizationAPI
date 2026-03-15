@@ -1,14 +1,11 @@
 ---
-import pythonLogo from "../assets/python.svg";
-import javaLogo from "../assets/java.svg";
-import cLogo from "../assets/c.svg";
-import cppLogo from "../assets/cplusplus.svg";
+import "devicon/devicon.min.css";
 
 const languages = [
-  { key: "python", label: "Python", logo: pythonLogo },
-  { key: "java", label: "Java", logo: javaLogo },
-  { key: "c", label: "C", logo: cLogo },
-  { key: "cpp", label: "C++", logo: cppLogo }
+  { key: "python", label: "Python", iconClass: "devicon-python-plain" },
+  { key: "java", label: "Java", iconClass: "devicon-java-plain" },
+  { key: "c", label: "C", iconClass: "devicon-c-plain" },
+  { key: "cpp", label: "C++", iconClass: "devicon-cplusplus-plain" }
 ];
 ---
 
@@ -27,7 +24,7 @@ const languages = [
             aria-pressed={index === 0 ? "true" : "false"}
             title={language.label}
           >
-            <language.logo class="language-icon h-8 w-8 text-white" />
+            <i class:list={["text-2xl", language.iconClass]} aria-hidden="true"></i>
           </button>
         </li>
       ))
@@ -64,11 +61,3 @@ const languages = [
     })
   );
 </script>
-
-<style>
-  .language-icon,
-  .language-icon * {
-    fill: currentColor;
-    stroke: currentColor;
-  }
-</style>
