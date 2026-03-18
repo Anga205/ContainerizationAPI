@@ -9,7 +9,7 @@ const languages = [
 ];
 ---
 
-<aside class="h-full w-full border-r border-neutral-800 bg-neutral-950">
+<aside class="h-full w-full border-r border-(--border-ui) bg-(--surface-0)">
   <ul class="flex flex-col items-center gap-3 p-3">
     {
       languages.map((language, index) => (
@@ -17,8 +17,8 @@ const languages = [
           <button
             type="button"
             class:list={[
-              "language-button group flex h-14 w-14 items-center justify-center rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 transition-colors hover:border-neutral-500",
-              index === 0 && "is-selected bg-neutral-800 text-neutral-100"
+              "language-button group flex h-14 w-14 items-center justify-center rounded-lg border border-(--border-ui) bg-(--surface-0) text-(--text-muted) transition-transform duration-150 hover:scale-105",
+              index === 0 && "is-selected"
             ]}
             data-language={language.key}
             aria-pressed={index === 0 ? "true" : "false"}
@@ -38,13 +38,11 @@ const languages = [
   languageButtons.forEach((button) => {
     button.addEventListener("click", () => {
       languageButtons.forEach((item) => {
-        item.classList.remove("is-selected", "bg-neutral-800", "text-neutral-100", "border-neutral-500");
-        item.classList.add("text-neutral-300");
+        item.classList.remove("is-selected");
         item.setAttribute("aria-pressed", "false");
       });
 
-      button.classList.add("is-selected", "bg-neutral-800", "text-neutral-100", "border-neutral-500");
-      button.classList.remove("text-neutral-300");
+      button.classList.add("is-selected");
       button.setAttribute("aria-pressed", "true");
 
       window.dispatchEvent(
@@ -61,3 +59,17 @@ const languages = [
     })
   );
 </script>
+
+<style>
+  aside {
+    border-right-color: var(--border-ui);
+    background: var(--surface-0);
+  }
+
+  .language-button.is-selected {
+    border-color: var(--accent-language);
+    background: var(--accent-language-soft);
+    color: var(--accent-language);
+    transform: scale(1.05);
+  }
+</style>

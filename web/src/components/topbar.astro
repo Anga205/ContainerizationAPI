@@ -1,23 +1,23 @@
 ---
-import { Sun } from "@lucide/astro"
+import { Moon, Sun } from "@lucide/astro";
 ---
-<div class="bg-neutral-900 h-1/12 w-screen flex">
+<div class="h-1/12 w-screen flex border-b border-(--border-ui) bg-(--surface-1) text-(--text-primary)">
     <div class="h-full aspect-square">
         <img class="spin-scale-hover p-[12%]" src="/anga.svg" />
     </div>
-    <div class="h-full text-white ml-[0.5vw]">
+    <div class="h-full ml-[0.5vw]">
         <p class="text-[3.2vh] font-bold">Anga's</p>
-        <p class="text-[1.8vh]">Online Compiler</p>
+        <p class="text-[1.8vh] text-(--text-muted)">Online Compiler</p>
     </div>
 
     <div class="grow" />
 
-    <div class="h-full w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] text-white px-[1vw]">
+    <div class="h-full w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] px-[1vw]">
         <label class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[14vw]">
-            <span class="text-[1.3vh] uppercase tracking-wide text-neutral-300">Limits</span>
+            <span class="text-[1.3vh] uppercase tracking-wide text-(--text-muted)">Limits</span>
             <select
                 id="limits-mode"
-                class="w-full h-[3.3vh] rounded-[0.6vw] border border-neutral-700 bg-neutral-800 text-neutral-200 text-[1.35vh] px-[0.7vw]"
+                class="w-full h-[3.3vh] rounded-[0.6vw] border border-(--border-ui) bg-(--surface-0) text-(--text-primary) text-[1.35vh] px-[0.7vw]"
                 onchange="document.getElementById('custom-limits-controls').classList.toggle('hidden', this.value !== 'custom')"
             >
                 <option value="default" selected>use default (reccomended) limits</option>
@@ -27,7 +27,7 @@ import { Sun } from "@lucide/astro"
 
         <div id="custom-limits-controls" class="hidden w-[38vw] items-center gap-[1vw]">
             <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[28vw]">
-                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-neutral-300">
+                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-(--text-muted)">
                     <span>Memory Limit</span>
                     <output id="memory-limit-value" for="memory-limit">32768 KB (32 MB)</output>
                 </div>
@@ -40,23 +40,23 @@ import { Sun } from "@lucide/astro"
                     value="32768"
                     step="1"
                     class="
-                        w-full h-[0.5vh] bg-neutral-700 rounded-full accent-purple-500
+                        w-full h-[0.5vh] rounded-full bg-(--surface-3) accent-(--accent-language)
                         [&::-webkit-slider-thumb]:h-2
                         [&::-webkit-slider-thumb]:w-2
                         [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-purple-500
+                        [&::-webkit-slider-thumb]:bg-(--accent-language)
                         [&::-webkit-slider-thumb]:appearance-none
                         [&::-moz-range-thumb]:h-2
                         [&::-moz-range-thumb]:w-2
                         [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-purple-500
+                        [&::-moz-range-thumb]:bg-(--accent-language)
                     "
                     oninput="const mb=(Number(this.value)/1024).toFixed(3).replace(/\.?0+$/, '');document.getElementById('memory-limit-value').value = `${this.value} KB (${mb} MB)`"
                 />
             </label>
 
             <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[22vw]">
-                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-neutral-300">
+                <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-(--text-muted)">
                     <span>Time Limit</span>
                     <output id="time-limit-value" for="time-limit">5 s</output>
                 </div>
@@ -69,16 +69,16 @@ import { Sun } from "@lucide/astro"
                     value="5"
                     step="1"
                     class="
-                        w-full h-[0.5vh] bg-neutral-700 rounded-full accent-purple-500
+                                                w-full h-[0.5vh] rounded-full bg-(--surface-3) accent-(--accent-language)
                         [&::-webkit-slider-thumb]:h-1
                         [&::-webkit-slider-thumb]:w-1
                         [&::-webkit-slider-thumb]:rounded-full
-                        [&::-webkit-slider-thumb]:bg-purple-500
+                                                [&::-webkit-slider-thumb]:bg-(--accent-language)
                         [&::-webkit-slider-thumb]:appearance-none
                         [&::-moz-range-thumb]:h-2
                         [&::-moz-range-thumb]:w-2
                         [&::-moz-range-thumb]:rounded-full
-                        [&::-moz-range-thumb]:bg-purple-500
+                                                [&::-moz-range-thumb]:bg-(--accent-language)
                     "
                     oninput="document.getElementById('time-limit-value').value = `${this.value} s`"
                 />
@@ -87,8 +87,45 @@ import { Sun } from "@lucide/astro"
     </div>
 
     <div class="h-full w-[4.8vw] flex items-center justify-center">
-        <button class="text-white hover:text-neutral-400 h-[6vh] w-[3.2vw] border rounded-md">
-            <Sun class="w-full h-full p-[20%]" />
+                <button
+                        id="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme"
+                        class="h-[6vh] w-[3.2vw] rounded-md border border-(--border-ui) bg-(--surface-0) text-(--text-primary) transition-transform duration-150 hover:scale-105"
+                >
+                        <Sun id="theme-icon-sun" class="w-full h-full p-[20%]" />
+                        <Moon id="theme-icon-moon" class="hidden w-full h-full p-[20%]" />
         </button>
     </div>
 </div>
+
+<script>
+    const root = document.documentElement;
+    const themeToggle = document.getElementById("theme-toggle");
+    const sunIcon = document.getElementById("theme-icon-sun");
+    const moonIcon = document.getElementById("theme-icon-moon");
+
+    type Theme = "light" | "dark";
+
+    const setTheme = (theme: Theme) => {
+        root.dataset.theme = theme;
+        localStorage.setItem("compiler-theme", theme);
+
+        sunIcon?.classList.toggle("hidden", theme === "light");
+        moonIcon?.classList.toggle("hidden", theme === "dark");
+
+        window.dispatchEvent(
+            new CustomEvent("compiler-theme-change", {
+                detail: { theme }
+            })
+        );
+    };
+
+    const savedTheme = localStorage.getItem("compiler-theme");
+    setTheme(savedTheme === "light" ? "light" : "dark");
+
+    themeToggle?.addEventListener("click", () => {
+        const nextTheme: Theme = root.dataset.theme === "light" ? "dark" : "light";
+        setTheme(nextTheme);
+    });
+</script>

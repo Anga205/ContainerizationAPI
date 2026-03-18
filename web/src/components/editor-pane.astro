@@ -1,8 +1,8 @@
-<section class="h-full min-w-65 bg-neutral-900" data-pane="left">
-  <div class="flex h-12 border-b border-neutral-800 bg-neutral-950 px-2">
+<section class="h-full min-w-65 bg-(--surface-1)" data-pane="left">
+  <div class="flex h-12 border-b border-(--border-ui) bg-(--surface-0) px-2">
     <button
       type="button"
-      class="tab-trigger is-active h-full border-b-2 border-neutral-100 px-4 text-sm font-medium text-neutral-100"
+      class="tab-trigger is-active h-full border-b-2 border-(--text-primary) px-4 text-sm font-semibold text-(--text-primary) transition-transform duration-150 hover:scale-105"
       data-target="code-editor-panel"
       aria-selected="true"
     >
@@ -10,7 +10,7 @@
     </button>
     <button
       type="button"
-      class="tab-trigger h-full border-b-2 border-transparent px-4 text-sm font-medium text-neutral-400"
+      class="tab-trigger h-full border-b-2 border-transparent px-4 text-sm font-medium text-(--text-muted) transition-transform duration-150 hover:scale-105"
       data-target="stdin-panel"
       aria-selected="false"
     >
@@ -24,7 +24,7 @@
     </div>
     <div id="stdin-panel" class="tab-panel hidden h-full p-3">
       <textarea
-        class="h-full w-full resize-none rounded-md border border-neutral-700 bg-neutral-950 p-3 text-sm text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-neutral-500"
+        class="h-full w-full resize-none rounded-md border border-(--border-ui) bg-(--surface-0) p-3 text-sm text-(--text-primary) outline-none placeholder:text-(--text-muted) focus:border-(--accent-language)"
         placeholder="Provide stdin input here"
       ></textarea>
     </div>
@@ -41,8 +41,25 @@
     cpp: "cpp"
   };
 
-  let monacoRef: { editor: { setModelLanguage: (arg0: any, arg1: any) => void; }; } | null = null;
-  let editorRef: { getModel: () => any; layout: () => any; } | null = null;
+  type MonacoModel = unknown;
+
+  type MonacoEditorInstance = {
+    getModel: () => MonacoModel;
+    layout: () => void;
+  };
+
+  type MonacoEditorApi = {
+    setModelLanguage: (model: MonacoModel, language: string) => void;
+    setTheme: (theme: string) => void;
+    create: (container: HTMLElement, options: Record<string, unknown>) => MonacoEditorInstance;
+  };
+
+  type MonacoModule = {
+    editor: MonacoEditorApi;
+  };
+
+  let monacoRef: MonacoModule | null = null;
+  let editorRef: MonacoEditorInstance | null = null;
 
   const tabTriggers = document.querySelectorAll(".tab-trigger");
   const tabPanels = document.querySelectorAll(".tab-panel");
@@ -52,8 +69,8 @@
       const targetId = trigger.getAttribute("data-target");
 
       tabTriggers.forEach((item) => {
-        item.classList.remove("is-active", "border-neutral-100", "text-neutral-100");
-        item.classList.add("border-transparent", "text-neutral-400");
+        item.classList.remove("is-active", "border-[var(--text-primary)]", "text-[var(--text-primary)]");
+        item.classList.add("border-transparent", "text-[var(--text-muted)]");
         item.setAttribute("aria-selected", "false");
       });
 
@@ -61,8 +78,8 @@
         panel.classList.add("hidden");
       });
 
-      trigger.classList.add("is-active", "border-neutral-100", "text-neutral-100");
-      trigger.classList.remove("border-transparent", "text-neutral-400");
+      trigger.classList.add("is-active", "border-[var(--text-primary)]", "text-[var(--text-primary)]");
+      trigger.classList.remove("border-transparent", "text-[var(--text-muted)]");
       trigger.setAttribute("aria-selected", "true");
 
       const targetPanel = document.getElementById(targetId ?? "");
@@ -93,9 +110,18 @@
     setEditorLanguage(selectedLanguage);
   });
 
+  window.addEventListener("compiler-theme-change", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+
+    const selectedTheme = event.detail?.theme;
+    if (selectedTheme !== "dark" && selectedTheme !== "light") return;
+
+    monacoRef?.editor.setTheme(selectedTheme === "light" ? "vs" : "vs-dark");
+  });
+
   if (monacoContainer) {
     loader.init().then((monaco) => {
-      monacoRef = monaco;
+      monacoRef = monaco as MonacoModule;
       editorRef = monaco.editor.create(monacoContainer, {
         value: [
           "def solve():",
@@ -105,7 +131,7 @@
           "solve()"
         ].join("\n"),
         language: "python",
-        theme: "vs-dark",
+        theme: document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark",
         minimap: { enabled: false },
         fontSize: 14,
         automaticLayout: true,
