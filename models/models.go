@@ -3,16 +3,16 @@ package models
 import "time"
 
 type Request struct {
-	Language    string
-	Code        string
-	Timeout     time.Duration
-	MemoryLimit uint
-	Stdin       string
+	Language    string        `json:"language"`
+	Code        string        `json:"code"`
+	Timeout     time.Duration `json:"timeout"`
+	MemoryLimit uint          `json:"max_memory"`
+	Stdin       []string      `json:"inputs,omitempty"`
 }
 
 type Response struct {
-	Stdout        string
-	Stderr        string
-	ExecutionTime time.Duration
-	MemoryUsed    uint
+	Stdout        string        `json:"output"`
+	Stderr        string        `json:"error"`
+	ExecutionTime time.Duration `json:"cpu_time"`
+	MemoryUsed    uint          `json:"memory_used"`
 }

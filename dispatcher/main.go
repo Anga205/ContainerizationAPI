@@ -15,7 +15,13 @@ func dispatch(req models.Request) (models.Response, error) {
 			ExecutionTime: 0,
 		}, nil
 	}
-	resourcemanager.ReserveRAM(req.MemoryLimit) // TODO: handle error and implement timeout for reservation
+	if !resourcemanager.ReserveRAM(req.MemoryLimit) { // TODO: handle condition for queueing requests when RAM is not available
+		return models.Response{
+			Stdout:        "",
+			Stderr:        "Failed to reserve RAM",
+			ExecutionTime: 0,
+		}, nil
+	}
 	defer resourcemanager.ReleaseRAM(req.MemoryLimit)
 	return executor.Execute(req)
 }
