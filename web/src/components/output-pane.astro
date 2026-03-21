@@ -2,6 +2,7 @@
   <div class="flex h-12 items-center justify-between border-b border-(--border-ui) bg-(--surface-1) px-3">
     <h2 class="text-sm font-semibold uppercase tracking-wide text-(--text-muted)">stdout</h2>
     <button
+      id="run-code-button"
       type="button"
       class="rounded-md border border-(--accent-run) bg-(--accent-run) px-4 py-1.5 text-sm font-bold uppercase tracking-wide text-white transition-transform duration-150 hover:scale-105"
     >
@@ -9,5 +10,301 @@
     </button>
   </div>
 
-  <pre class="h-[calc(100%-3rem)] overflow-auto p-3 text-sm leading-6 text-(--text-primary)">Program output will appear here.</pre>
+  <div class="h-[calc(100%-3rem)] overflow-auto">
+    <div class="grid grid-cols-2 gap-3 border-b border-(--border-ui) px-3 py-2 text-xs uppercase tracking-wide text-(--text-muted)">
+      <p>time: <span id="stdout-time" class="normal-case text-(--text-primary)">-</span></p>
+      <p>memory: <span id="stdout-memory" class="normal-case text-(--text-primary)">-</span></p>
+    </div>
+
+    <pre id="stdout-output" class="min-h-36 whitespace-pre-wrap p-3 text-sm leading-6 text-(--text-primary)">Program output will appear here.</pre>
+
+    <div id="stdout-error-card" class="hidden mx-3 mb-3 rounded-md border px-3 py-2">
+      <p id="stdout-error-title" class="text-xs font-bold uppercase tracking-wide"></p>
+      <p id="stdout-error-message" class="mt-1 text-sm font-medium"></p>
+      <p id="stdout-error-hint" class="mt-1 text-xs"></p>
+    </div>
+  </div>
 </section>
+
+<script>
+  const EXECUTE_ENDPOINT = "https://codeapi.anga.codes/v2/execute";
+  const DEFAULT_TIMEOUT_SECONDS = 5;
+  const DEFAULT_MEMORY_KB = 32768;
+  const NANOSECONDS_PER_SECOND = 1_000_000_000;
+
+  const runButton = document.getElementById("run-code-button") as HTMLButtonElement | null;
+  const outputElement = document.getElementById("stdout-output");
+  const errorCardElement = document.getElementById("stdout-error-card");
+  const errorTitleElement = document.getElementById("stdout-error-title");
+  const errorMessageElement = document.getElementById("stdout-error-message");
+  const errorHintElement = document.getElementById("stdout-error-hint");
+  const timeElement = document.getElementById("stdout-time");
+  const memoryElement = document.getElementById("stdout-memory");
+
+  const runtimeWindow = window as Window & {
+    __compilerEditorApi?: {
+      getCode: () => string;
+      getStdin: () => string;
+    };
+  };
+
+  let isRequestInFlight = false;
+  let selectedLanguage = "python";
+
+  const setRunButtonState = (isRunning: boolean) => {
+    if (!runButton) return;
+
+    runButton.disabled = isRunning;
+    runButton.textContent = isRunning ? "running..." : "run";
+    runButton.classList.toggle("opacity-60", isRunning);
+    runButton.classList.toggle("cursor-not-allowed", isRunning);
+    runButton.classList.toggle("hover:scale-105", !isRunning);
+  };
+
+  const toMegabytes = (valueInKb: number) => valueInKb / 1024;
+
+  const toCompactNumber = (value: number, fractionDigits = 2) => {
+    return Number(value.toFixed(fractionDigits)).toString();
+  };
+
+  const parseCpuTimeToNanoseconds = (cpuTime: unknown) => {
+    if (typeof cpuTime === "number" && Number.isFinite(cpuTime) && cpuTime >= 0) {
+      return cpuTime;
+    }
+
+    if (typeof cpuTime !== "string") {
+      return null;
+    }
+
+    const normalized = cpuTime.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+
+    const match = normalized.match(/^([\d.]+)\s*(ns|us|µs|ms|s|m)?$/);
+    if (!match) {
+      return null;
+    }
+
+    const value = Number(match[1]);
+    const unit = match[2] ?? "ns";
+    if (!Number.isFinite(value) || value < 0) {
+      return null;
+    }
+
+    if (unit === "ns") return value;
+    if (unit === "us" || unit === "µs") return value * 1_000;
+    if (unit === "ms") return value * 1_000_000;
+    if (unit === "s") return value * 1_000_000_000;
+    if (unit === "m") return value * 60 * 1_000_000_000;
+
+    return null;
+  };
+
+  const formatCpuTime = (cpuTime: unknown) => {
+    const nanoseconds = parseCpuTimeToNanoseconds(cpuTime);
+    if (nanoseconds == null) {
+      return "-";
+    }
+
+    if (nanoseconds < 1_000) {
+      return `${toCompactNumber(nanoseconds, 0)} ns`;
+    }
+
+    if (nanoseconds < 1_000_000) {
+      return `${toCompactNumber(nanoseconds / 1_000)} µs`;
+    }
+
+    if (nanoseconds < 1_000_000_000) {
+      return `${toCompactNumber(nanoseconds / 1_000_000)} ms`;
+    }
+
+    if (nanoseconds < 60 * 1_000_000_000) {
+      return `${toCompactNumber(nanoseconds / 1_000_000_000)} s`;
+    }
+
+    return `${toCompactNumber(nanoseconds / (60 * 1_000_000_000))} m`;
+  };
+
+  const formatMemoryInMb = (memoryUsed: unknown) => {
+    if (typeof memoryUsed === "number") {
+      return `${toMegabytes(memoryUsed).toFixed(2)} MB`;
+    }
+
+    if (typeof memoryUsed === "string") {
+      const parsed = Number(memoryUsed.replace(/[^\d.]/g, ""));
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return `${toMegabytes(parsed).toFixed(2)} MB`;
+      }
+    }
+
+    return "-";
+  };
+
+  const setExecutionDetails = (cpuTime: unknown, memoryUsed: unknown) => {
+    if (timeElement) {
+      timeElement.textContent = formatCpuTime(cpuTime);
+    }
+
+    if (memoryElement) {
+      memoryElement.textContent = formatMemoryInMb(memoryUsed);
+    }
+  };
+
+  const showExecutionError = (message: string) => {
+    if (!errorCardElement || !errorTitleElement || !errorMessageElement || !errorHintElement) return;
+
+    const normalized = message.trim().toLowerCase();
+    const isTimeout = normalized === "execution timed out";
+    const isMemoryLimit = normalized === "memory limit exceeded";
+
+    errorCardElement.classList.remove(
+      "hidden",
+      "border-red-700",
+      "bg-red-950/40",
+      "text-red-200",
+      "border-amber-600",
+      "bg-amber-950/35",
+      "text-amber-200",
+      "border-rose-700",
+      "bg-rose-950/40",
+      "text-rose-200"
+    );
+
+    if (isTimeout) {
+      errorCardElement.classList.add("border-amber-600", "bg-amber-950/35", "text-amber-200");
+      errorTitleElement.textContent = "timeout";
+      errorHintElement.textContent = "Try increasing the time limit or optimizing loops and recursion depth.";
+    } else if (isMemoryLimit) {
+      errorCardElement.classList.add("border-rose-700", "bg-rose-950/40", "text-rose-200");
+      errorTitleElement.textContent = "memory limit";
+      errorHintElement.textContent = "Try reducing memory usage or increase max memory from custom limits.";
+    } else {
+      errorCardElement.classList.add("border-red-700", "bg-red-950/40", "text-red-200");
+      errorTitleElement.textContent = "execution error";
+      errorHintElement.textContent = "Check your code and input, then run again.";
+    }
+
+    errorMessageElement.textContent = message;
+    errorCardElement.classList.remove("hidden");
+  };
+
+  const clearExecutionError = () => {
+    if (!errorCardElement || !errorTitleElement || !errorMessageElement || !errorHintElement) return;
+
+    errorCardElement.classList.add("hidden");
+    errorTitleElement.textContent = "";
+    errorMessageElement.textContent = "";
+    errorHintElement.textContent = "";
+  };
+
+  const getLimits = () => {
+    const limitsMode = document.getElementById("limits-mode") as HTMLSelectElement | null;
+    const timeoutInput = document.getElementById("time-limit") as HTMLInputElement | null;
+    const memoryInput = document.getElementById("memory-limit") as HTMLInputElement | null;
+
+    if (limitsMode?.value !== "custom") {
+      return {
+        timeout: DEFAULT_TIMEOUT_SECONDS,
+        maxMemory: DEFAULT_MEMORY_KB
+      };
+    }
+
+    const timeout = Number(timeoutInput?.value ?? DEFAULT_TIMEOUT_SECONDS);
+    const maxMemory = Number(memoryInput?.value ?? DEFAULT_MEMORY_KB);
+
+    return {
+      timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_TIMEOUT_SECONDS,
+      maxMemory: Number.isFinite(maxMemory) && maxMemory > 0 ? maxMemory : DEFAULT_MEMORY_KB
+    };
+  };
+
+  const getLanguage = () => {
+    const selectedButton = document.querySelector<HTMLButtonElement>(".language-button[aria-pressed='true']");
+    return selectedButton?.dataset.language ?? selectedLanguage;
+  };
+
+  window.addEventListener("compiler-language-change", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+
+    const changedLanguage = event.detail?.language;
+    if (typeof changedLanguage !== "string") return;
+
+    selectedLanguage = changedLanguage;
+  });
+
+  runButton?.addEventListener("click", async () => {
+    if (isRequestInFlight) return;
+
+    const editorApi = runtimeWindow.__compilerEditorApi;
+    const code = editorApi?.getCode() ?? "";
+    const stdinRaw = editorApi?.getStdin() ?? "";
+    const language = getLanguage() || "python";
+    const { timeout, maxMemory } = getLimits();
+    const timeoutNanoseconds = Math.round(timeout * NANOSECONDS_PER_SECOND);
+    const inputs = stdinRaw;
+
+    isRequestInFlight = true;
+    setRunButtonState(true);
+    clearExecutionError();
+    setExecutionDetails("-", "-");
+
+    if (outputElement) {
+      outputElement.textContent = "Running code...";
+    }
+
+    try {
+      const response = await fetch(EXECUTE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          language,
+          code,
+          timeout: timeoutNanoseconds,
+          max_memory: maxMemory,
+          inputs
+        })
+      });
+
+      let payload: Record<string, unknown> | null = null;
+      try {
+        payload = (await response.json()) as Record<string, unknown>;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          typeof payload?.error === "string"
+            ? payload.error
+            : `Execution failed with status ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const output = typeof payload?.output === "string" ? payload.output : "";
+      const error = typeof payload?.error === "string" ? payload.error : "";
+
+      if (outputElement) {
+        outputElement.textContent = output || (error ? "" : "No output.");
+      }
+
+      setExecutionDetails(payload?.cpu_time, payload?.memory_used);
+
+      if (error) {
+        showExecutionError(error);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to execute code.";
+      if (outputElement) {
+        outputElement.textContent = "";
+      }
+      showExecutionError(errorMessage);
+      setExecutionDetails("-", "-");
+    } finally {
+      isRequestInFlight = false;
+      setRunButtonState(false);
+    }
+  });
+</script>

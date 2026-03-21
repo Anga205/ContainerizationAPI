@@ -9,8 +9,8 @@
     --border-ui: #3f3f46;
     --text-primary: #f5f5f5;
     --text-muted: #a3a3a3;
-    --accent-language: #38bdf8;
-    --accent-language-soft: #082f49;
+    --accent-language: #d4d4d4;
+    --accent-language-soft: #262626;
     --accent-run: #22c55e;
     --accent-run-soft: #14532d;
 }
@@ -24,8 +24,8 @@ html[data-theme="light"] {
     --border-ui: #a3a3a3;
     --text-primary: #171717;
     --text-muted: #525252;
-    --accent-language: #0369a1;
-    --accent-language-soft: #bae6fd;
+    --accent-language: #525252;
+    --accent-language-soft: #d4d4d4;
     --accent-run: #15803d;
     --accent-run-soft: #bbf7d0;
 }

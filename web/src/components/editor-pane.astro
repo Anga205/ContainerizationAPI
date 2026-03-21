@@ -6,7 +6,7 @@
       data-target="code-editor-panel"
       aria-selected="true"
     >
-      code editor
+      EDITOR
     </button>
     <button
       type="button"
@@ -14,7 +14,7 @@
       data-target="stdin-panel"
       aria-selected="false"
     >
-      stdin
+      INPUT
     </button>
   </div>
 
@@ -45,6 +45,7 @@
 
   type MonacoEditorInstance = {
     getModel: () => MonacoModel;
+    getValue: () => string;
     layout: () => void;
   };
 
@@ -60,6 +61,19 @@
 
   let monacoRef: MonacoModule | null = null;
   let editorRef: MonacoEditorInstance | null = null;
+  const runtimeWindow = window as Window & {
+    __compilerEditorApi?: {
+      getCode: () => string;
+      getStdin: () => string;
+    };
+  };
+
+  const stdinTextarea = document.querySelector<HTMLTextAreaElement>("#stdin-panel textarea");
+
+  runtimeWindow.__compilerEditorApi = {
+    getCode: () => editorRef?.getValue() ?? "",
+    getStdin: () => stdinTextarea?.value ?? ""
+  };
 
   const tabTriggers = document.querySelectorAll(".tab-trigger");
   const tabPanels = document.querySelectorAll(".tab-panel");
