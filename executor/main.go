@@ -67,7 +67,7 @@ func Execute(req models.Request) (models.Response, error) {
 		Setpgid:    true,
 	}
 	if len(req.Stdin) > 0 {
-		runCmd.Stdin = strings.NewReader(strings.Join(req.Stdin, "\n"))
+		runCmd.Stdin = strings.NewReader(req.Stdin)
 	}
 
 	var stdoutBuf strings.Builder
