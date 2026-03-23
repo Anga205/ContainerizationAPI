@@ -1,4 +1,4 @@
-name: Integration Tests
+name: Java Integration Tests
 
 on:
   push:
@@ -23,12 +23,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run filesystem isolation subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/file privacy across request IDs' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^file privacy across request IDs$' ./...
 
   test-disk-cleanup:
     name: "Security: Disk Cleanup (Storage Exhaustion)"
@@ -46,12 +46,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run disk cleanup subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/disk spammer is terminated and data is reclaimed' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^disk spammer is terminated and data is reclaimed$' ./...
 
   test-fork-bomb:
     name: "Resource: Fork Bomb Containment"
@@ -69,12 +69,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run fork bomb subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/fork bomb does not poison subsequent requests' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^fork bomb does not poison subsequent requests$' ./...
 
   test-network-isolation:
     name: "Security: Network Namespace (Localhost Bridge)"
@@ -92,12 +92,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run network isolation subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/network namespace blocks localhost bridge' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^network namespace blocks localhost bridge$' ./...
 
   test-memory-oom:
     name: "Security: Memory Limit (Hard OOM)"
@@ -115,12 +115,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run memory OOM subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/memory hard limit triggers oom kill' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^memory hard limit triggers oom kill$' ./...
 
   test-io-flood:
     name: "Resilience: I/O Flood (Bounded Stderr)"
@@ -138,12 +138,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run I/O flood resilience subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/io flood is bounded and returns before timeout' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^io flood is bounded and returns before timeout$' ./...
 
   test-signal-trap:
     name: "Resilience: Signal Trap Uses SIGKILL Timeout"
@@ -161,12 +161,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run signal trap resilience subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/signal trap cannot survive forced timeout' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^signal trap cannot survive forced timeout$' ./...
 
   test-orphan-reaping:
     name: "Resilience: Orphan Grandchild Reaping"
@@ -184,12 +184,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run orphan reaping resilience subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/orphan grandchild is reaped after request exits' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^orphan grandchild is reaped after request exits$' ./...
 
   test-inode-exhaustion:
     name: "Resilience: Inode Exhaustion Safety"
@@ -207,12 +207,12 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run inode exhaustion resilience subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/inode bomb does not poison host temp filesystem' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^inode bomb does not poison host temp filesystem$' ./...
 
   test-privileged-syscall:
     name: "Resilience: Privileged Syscall Denial"
@@ -230,78 +230,9 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
 
       - name: Run privileged syscall denial subtest
         env:
           ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/privileged reboot syscall is denied' ./...
-
-  test-python3-suite:
-    name: "Language Gap: Python3 Security/Resilience Suite (Expected Fail)"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev python3
-
-      - name: Run Python3 mirrored suite
-        env:
-          ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$' ./...
-
-  test-cpp-suite:
-    name: "Language Gap: C++ Security/Resilience Suite (Expected Fail)"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc g++ libc6-dev
-
-      - name: Run C++ mirrored suite
-        env:
-          ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationCpp$' ./...
-
-  test-java-suite:
-    name: "Language Gap: Java Security/Resilience Suite (Expected Fail)"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
-
-      - name: Run Java mirrored suite
-        env:
-          ENABLE_QUEUE: "false"
-        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$' ./...
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$/^privileged reboot syscall is denied$' ./...
