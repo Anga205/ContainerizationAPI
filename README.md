@@ -1,6 +1,6 @@
 # ContainerizationAPI
 
-The general idea of this project is to provide a service similar to the [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI) by [The Alcoding Club](github.com/thealcodingclub) but to manually implement the containerization using cgroups, namespaces, chroot and a bunch of other unix/linux utility tools.
+The general idea of this project is to provide a service similar to the [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI) by [The Alcoding Club](github.com/thealcodingclub) but to manually implement the containerization using cgroups, namespaces, chroot and a bunch of other unix/linux utility tools. This will help accomplish faster execution times and cut down on sandboxing overhead
 
 I'm making this as part of a bigger project to host my own coding contests on a platform a little better than hackerrank. The Alcoding Club's API is fine but I need one thats more efficient and has less overhead than firejail.
 
@@ -11,16 +11,19 @@ To **Host** this API, you need to have Linux or WSL (if you're on windows) or Ma
 
 ## Usage
 
-Just send an HTTP request to the `/execute` endpoint (sample requests with sample curl commands given below), 
-If you've already used [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI), this is basically a drop-in replacement for that project
+Using this API is designed to be as simple as possible, at it's core, it's just an HTTP request that you send to `/execute`, or `/simple-execute`
 
-### Route: /execute
+The following are the routes that this API makes available, click one to see it's documentation
+
+<details>
+<summary><h3>POST Route: /simple-execute</h3></summary>
+
+This route is a drop in replacement for [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI), just take the code where you called the old API and replace `https://codeapi.anga.codes/execute` with `${url}/simple-execute` and watch as ur response times get faster!.
 
 This route takes 4 fields:
 
 1. `langauge`: The language of the code snippet.
-
-<details>
+    <details>
     <summary>Click to see supported languages</summary>
 
     - python
@@ -29,21 +32,19 @@ This route takes 4 fields:
     - c
     - java
 
-</details>
+    </details>
 
 2. `code`: The code snippet to be executed.
-3. `timeout`: The maximum time in seconds for which the code should run. If the code runs for more than this time, it will be terminated. 
-    - default: **5 seconds**
-    - max: **60 seconds**
-4. `max_memory`: The maximum memory in KB (kilobytes) that the code can use. If your code tries to use more memory than this, it'll encounter a memory limit error.
-    - default: **32768KB** (or 32MB)
-    - max: **131072KB** (or 128MB)
+3. `timeout` (optional field): The maximum number of seconds for which the code should run. If the code takes more time to execute than what it was allocated, it will be terminated.
+    - default (value assumed if you dont specify): **5 seconds**
+    - max (you can't allocate more seconds than this): **60 seconds**
+4. `max_memory`: The maximum memory in KB (kilobytes) that the code can use. If the code uses more memory than this, it will be terminated.
+    - default (value assumed if you dont specify): **32768KB** (or 32MB)
+    - max (you can't allocate more RAM than this): **131072KB** (or 128MB)
 
-**Note:** The default and maximum values apply to the publically hosted URL of this repository, but if you are hosting your own instance, you can change the default and max values with environment variables (mentioned at the end of this README)
+*Note: the above mentioned default and max values can be modified by editing the environment variables mentioned at the bottom of this README*
 
 ---
-
-### Example Requests
 
 #### Request body format (Example 1):
 
@@ -197,6 +198,15 @@ curl --location 'https://codeapi.anga.codes/execute' \
     "cpu_time": "135.266682ms"
 }
 ```
+
+
+</details>
+
+**Note**: the route `/simple-execute` also calls `/execute` under the hood, its just that the formatting for the input and output are slightly more easy to read and understand. 
+<details>
+    <summary><h3>POST Route: /execute</h3></summary>
+    Will type this out soon
+</details>
 
 ## Environment Variables
 
