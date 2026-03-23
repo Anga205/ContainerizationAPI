@@ -26,6 +26,9 @@ func finalizeResponse(
 	if timedOut && !limitHit {
 		stderr = appendTimeoutError(stderr)
 	}
+	if runErr != nil && isExitError(runErr) && strings.TrimSpace(stderr) == "" {
+		stderr = runErr.Error()
+	}
 	if runErr != nil && !isExitError(runErr) {
 		return models.Response{}, fmt.Errorf("execution failed: %w", runErr)
 	}

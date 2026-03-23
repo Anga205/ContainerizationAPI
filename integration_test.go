@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -91,6 +92,11 @@ func TestContainerizationAPISecurityIntegration(t *testing.T) {
 		{name: "fork bomb does not poison subsequent requests", run: testForkBombContainment},
 		{name: "network namespace blocks localhost bridge", run: testNetworkIsolation},
 		{name: "memory hard limit triggers oom kill", run: testMemoryHardLimit},
+		{name: "io flood is bounded and returns before timeout", run: testIOFloodResilience},
+		{name: "signal trap cannot survive forced timeout", run: testSignalTrapTimeout},
+		{name: "orphan grandchild is reaped after request exits", run: testOrphanReaping},
+		{name: "inode bomb does not poison host temp filesystem", run: testInodeExhaustion},
+		{name: "privileged reboot syscall is denied", run: testPrivilegedSyscallDenied},
 	}
 
 	for _, tc := range cases {
@@ -185,6 +191,81 @@ func testMemoryHardLimit(t *testing.T, h integrationHarness) {
 	}
 }
 
+func testIOFloodResilience(t *testing.T, h integrationHarness) {
+	code := mustLoadSampleCode(t, "io_spam.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 1, 32768))
+
+	stderrLower := strings.ToLower(resp.Error)
+	if !containsAny(stderrLower, []string{"execution timed out", "killed", "memory limit exceeded"}) {
+		t.Fatalf("io flood did not terminate with expected error; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+
+	if strings.TrimSpace(resp.Error) == "" {
+		t.Fatalf("io flood returned empty stderr; expected bounded but non-empty error output")
+	}
+
+	const maxErrorBytes = (1 << 20) + 4096
+	if len(resp.Error) > maxErrorBytes {
+		t.Fatalf("stderr exceeded resilience cap: got=%d bytes cap=%d", len(resp.Error), maxErrorBytes)
+	}
+
+	assertDurationNotExcessive(t, resp.CPUTime, 3*time.Second, "io flood request")
+}
+
+func testSignalTrapTimeout(t *testing.T, h integrationHarness) {
+	code := mustLoadSampleCode(t, "signal_trap.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 1, 32768))
+
+	if !strings.Contains(strings.ToLower(resp.Error), "execution timed out") {
+		t.Fatalf("signal trap did not timeout as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+
+	assertDurationWindow(t, resp.CPUTime, 900*time.Millisecond, 2500*time.Millisecond, "signal trap timeout")
+}
+
+func testOrphanReaping(t *testing.T, h integrationHarness) {
+	code := mustLoadSampleCode(t, "orphan_maker.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 2, 32768))
+	assertDurationNotExcessive(t, resp.CPUTime, 3*time.Second, "orphan maker request")
+
+	time.Sleep(400 * time.Millisecond)
+	if cnt := countProcessesByComm(t, "orphanmakergc"); cnt > 0 {
+		t.Fatalf("orphan grandchild leaked to host after request completion: count=%d stderr=%q", cnt, resp.Error)
+	}
+}
+
+func testInodeExhaustion(t *testing.T, h integrationHarness) {
+	beforeFree := mustFreeBytes(t, os.TempDir())
+	beforeCount := countSandboxTempDirs(t)
+
+	code := mustLoadSampleCode(t, "inode_bomb.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 4, 32768))
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if !containsAny(combinedLower, []string{"inode bomb completed", "no space left", "disk quota exceeded"}) {
+		t.Fatalf("inode exhaustion test produced unexpected result; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+
+	time.Sleep(400 * time.Millisecond)
+	assertDiskReclaimed(t, beforeFree, mustFreeBytes(t, os.TempDir()))
+	assertNoSandboxLeak(t, beforeCount, countSandboxTempDirs(t))
+	mustCreateAndDeleteTempFile(t)
+}
+
+func testPrivilegedSyscallDenied(t *testing.T, h integrationHarness) {
+	code := mustLoadSampleCode(t, "try_reboot.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 3, 32768))
+	assertDurationNotExcessive(t, resp.CPUTime, 3*time.Second, "privileged reboot syscall")
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combinedLower, "reboot succeeded unexpectedly") {
+		t.Fatalf("privileged reboot syscall unexpectedly succeeded; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if !containsAny(combinedLower, []string{"operation not permitted", "permission denied", "bad system call", "killed", "hangup"}) {
+		t.Fatalf("expected privileged syscall denial signal was not observed; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
 func mustLoadSampleCode(t *testing.T, fileName string, replacements map[string]string) string {
 	t.Helper()
 	path := filepath.Join(sampleCodeDir, fileName)
@@ -272,6 +353,80 @@ func countSandboxTempDirs(t *testing.T) int {
 		t.Fatalf("failed to glob sandbox temp dirs: %v", err)
 	}
 	return len(matches)
+}
+
+func countProcessesByComm(t *testing.T, expected string) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		t.Fatalf("failed to read /proc: %v", err)
+	}
+
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() || !isNumeric(entry.Name()) {
+			continue
+		}
+		if hasProcessComm(entry, expected) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasProcessComm(entry fs.DirEntry, expected string) bool {
+	commPath := filepath.Join("/proc", entry.Name(), "comm")
+	content, err := os.ReadFile(commPath)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(content)) == expected
+}
+
+func isNumeric(value string) bool {
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return value != ""
+}
+
+func assertDurationWindow(t *testing.T, durationRaw string, min, max time.Duration, label string) {
+	t.Helper()
+	d, err := time.ParseDuration(durationRaw)
+	if err != nil {
+		t.Fatalf("failed to parse cpu_time for %s (%q): %v", label, durationRaw, err)
+	}
+	if d < min || d > max {
+		t.Fatalf("%s duration out of range: got=%s min=%s max=%s", label, d, min, max)
+	}
+}
+
+func assertDurationNotExcessive(t *testing.T, durationRaw string, max time.Duration, label string) {
+	t.Helper()
+	d, err := time.ParseDuration(durationRaw)
+	if err != nil {
+		t.Fatalf("failed to parse cpu_time for %s (%q): %v", label, durationRaw, err)
+	}
+	if d > max {
+		t.Fatalf("%s took too long: got=%s max=%s", label, d, max)
+	}
+}
+
+func mustCreateAndDeleteTempFile(t *testing.T) {
+	t.Helper()
+	f, err := os.CreateTemp("", "inode-health-*")
+	if err != nil {
+		t.Fatalf("host temp filesystem unhealthy after inode test: %v", err)
+	}
+	name := f.Name()
+	if err := f.Close(); err != nil {
+		t.Fatalf("failed to close temp file %s: %v", name, err)
+	}
+	if err := os.Remove(name); err != nil {
+		t.Fatalf("failed to remove temp file %s: %v", name, err)
+	}
 }
 
 func containsAny(haystack string, needles []string) bool {

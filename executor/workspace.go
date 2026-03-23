@@ -29,7 +29,7 @@ func prepareWorkspace(code string) (sandboxWorkspace, error) {
 }
 
 func compileWorkspace(ws sandboxWorkspace) (string, bool) {
-	cmd := exec.Command("gcc", "-O0", "-pipe", "-std=c11", "-static", "-s", "-o", ws.binaryPath, ws.sourcePath)
+	cmd := exec.Command("gcc", "-O2", "-pipe", "-std=c11", "-static", "-s", "-o", ws.binaryPath, ws.sourcePath)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

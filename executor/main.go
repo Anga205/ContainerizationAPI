@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -64,10 +63,10 @@ func executeSandboxedBinary(req models.Request, sandboxDir string, cg *resourcem
 	return finalizeResponse(cmd, stdoutBuf.String(), stderrBuf.String(), time.Since(start), observedPeak, timedOut, waitErr, cg)
 }
 
-func buildCommandBuffers(stdin, sandboxDir string, cgroupFD int) (*exec.Cmd, *strings.Builder, *strings.Builder) {
+func buildCommandBuffers(stdin, sandboxDir string, cgroupFD int) (*exec.Cmd, *limitedBuffer, *limitedBuffer) {
 	cmd := buildSandboxCommand(stdin, sandboxDir, cgroupFD)
-	stdoutBuf := &strings.Builder{}
-	stderrBuf := &strings.Builder{}
+	stdoutBuf := newLimitedBuffer(1 << 20)
+	stderrBuf := newLimitedBuffer(1 << 20)
 	cmd.Stdout = stdoutBuf
 	cmd.Stderr = stderrBuf
 	return cmd, stdoutBuf, stderrBuf
