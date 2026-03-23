@@ -22,6 +22,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const sampleCodeDir = "sample_code_for_tests"
+
 type simpleExecuteRequest struct {
 	Language  string   `json:"language"`
 	Code      string   `json:"code"`
@@ -37,21 +39,18 @@ type simpleExecuteResponse struct {
 	CPUTime    string `json:"cpu_time"`
 }
 
+type integrationHarness struct {
+	baseURL string
+	apiPort int
+}
+
 var (
 	testServer *httptest.Server
 	httpClient = &http.Client{Timeout: 30 * time.Second}
 )
 
 func TestMain(m *testing.M) {
-	if os.Geteuid() != 0 {
-		fmt.Fprintln(os.Stderr, "integration tests must run as root (sudo go test -v)")
-		os.Exit(1)
-	}
-	if _, err := exec.LookPath("gcc"); err != nil {
-		fmt.Fprintf(os.Stderr, "gcc is required for integration tests: %v\n", err)
-		os.Exit(1)
-	}
-
+	enforceRootAndCompiler()
 	config.Config.Globals.ENABLE_QUEUE = false
 
 	gin.SetMode(gin.ReleaseMode)
@@ -64,237 +63,145 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
+func enforceRootAndCompiler() {
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "integration tests must run as root (sudo go test -v)")
+		os.Exit(1)
+	}
+	if _, err := exec.LookPath("gcc"); err != nil {
+		fmt.Fprintf(os.Stderr, "gcc is required for integration tests: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func TestContainerizationAPISecurityIntegration(t *testing.T) {
 	if config.Config.Globals.ENABLE_QUEUE {
 		t.Fatal("ENABLE_QUEUE must be false for integration tests")
 	}
 
-	baseURL := testServer.URL
-	apiPort := mustExtractPort(t, baseURL)
+	h := integrationHarness{baseURL: testServer.URL}
+	h.apiPort = mustExtractPort(t, h.baseURL)
 
-	testCases := []struct {
+	cases := []struct {
 		name string
-		run  func(t *testing.T)
+		run  func(*testing.T, integrationHarness)
 	}{
-		{name: "file privacy across request IDs", run: func(t *testing.T) {
-			const secret = "SecretData123"
-			writePayload := `
-#include <stdio.h>
-#include <sys/stat.h>
-
-int main() {
-    mkdir("/root", 0700);
-    FILE *f = fopen("/root/test.txt", "w");
-    if (!f) {
-        perror("fopen write");
-        return 1;
-    }
-    fprintf(f, "SecretData123");
-    fclose(f);
-
-    char buf[64] = {0};
-    f = fopen("/root/test.txt", "r");
-    if (!f) {
-        perror("fopen read");
-        return 1;
-    }
-    fgets(buf, sizeof(buf), f);
-    fclose(f);
-    printf("%s", buf);
-    return 0;
-}
-`
-			respA := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: writePayload, Timeout: 4, MaxMemory: 32768})
-			if !strings.Contains(respA.Output, secret) {
-				t.Fatalf("step A did not return secret in stdout; stdout=%q stderr=%q", respA.Output, respA.Error)
-			}
-
-			readPayload := `
-#include <stdio.h>
-
-int main() {
-    FILE *f = fopen("/root/test.txt", "r");
-    if (!f) {
-        perror("fopen");
-        return 1;
-    }
-    char buf[64] = {0};
-    fgets(buf, sizeof(buf), f);
-    fclose(f);
-    printf("%s", buf);
-    return 0;
-}
-`
-			respB := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: readPayload, Timeout: 4, MaxMemory: 32768})
-			if !strings.Contains(strings.ToLower(respB.Error), "no such file or directory") {
-				t.Fatalf("step B unexpectedly accessed file from another sandbox; stdout=%q stderr=%q", respB.Output, respB.Error)
-			}
-		}},
-		{name: "disk spammer is terminated and data is reclaimed", run: func(t *testing.T) {
-			beforeFree := mustFreeBytes(t, os.TempDir())
-			beforeCount := countSandboxTempDirs(t)
-
-			spammerPayload := `
-#include <stdio.h>
-#include <string.h>
-
-int main() {
-    static char buf[1024 * 1024];
-    memset(buf, 'A', sizeof(buf));
-
-    FILE *f = fopen("/disk_spam.bin", "w");
-    if (!f) {
-        perror("fopen");
-        return 1;
-    }
-
-    while (1) {
-        if (fwrite(buf, 1, sizeof(buf), f) != sizeof(buf)) {
-            perror("fwrite");
-            fflush(f);
-            return 1;
-        }
-        fflush(f);
-    }
-}
-`
-			resp := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: spammerPayload, Timeout: 2, MaxMemory: 32768})
-			stderrLower := strings.ToLower(resp.Error)
-			if !strings.Contains(stderrLower, "execution timed out") && !strings.Contains(stderrLower, "memory limit exceeded") {
-				t.Fatalf("disk spammer was not terminated as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
-			}
-
-			time.Sleep(400 * time.Millisecond)
-			afterFree := mustFreeBytes(t, os.TempDir())
-			afterCount := countSandboxTempDirs(t)
-
-			const maxAllowedResidualBytes = uint64(20 * 1024 * 1024)
-			if beforeFree > afterFree && (beforeFree-afterFree) > maxAllowedResidualBytes {
-				t.Fatalf("sandbox disk garbage appears to persist: free space dropped by %d bytes", beforeFree-afterFree)
-			}
-			if afterCount > beforeCount {
-				t.Fatalf("sandbox temp directories leaked: before=%d after=%d", beforeCount, afterCount)
-			}
-		}},
-		{name: "fork bomb does not poison subsequent requests", run: func(t *testing.T) {
-			forkBombPayload := `
-#include <stdio.h>
-#include <unistd.h>
-
-int main() {
-    while (1) {
-        pid_t p = fork();
-        if (p < 0) {
-            perror("fork");
-            return 0;
-        }
-        if (p == 0) {
-            for (;;) {
-                pause();
-            }
-        }
-    }
-}
-`
-			_ = callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: forkBombPayload, Timeout: 2, MaxMemory: 32768})
-
-			helloPayload := `
-#include <stdio.h>
-int main() {
-    printf("Hello World\\n");
-    return 0;
-}
-`
-			helloResp := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: helloPayload, Timeout: 4, MaxMemory: 32768})
-			if !strings.Contains(helloResp.Output, "Hello World") {
-				t.Fatalf("follow-up request failed after fork bomb; stdout=%q stderr=%q", helloResp.Output, helloResp.Error)
-			}
-			if strings.Contains(strings.ToLower(helloResp.Error), "resource temporarily unavailable") {
-				t.Fatalf("follow-up request indicates host PID exhaustion; stderr=%q", helloResp.Error)
-			}
-		}},
-		{name: "network namespace blocks localhost bridge", run: func(t *testing.T) {
-			netPayload := fmt.Sprintf(`
-#include <arpa/inet.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-
-int main() {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        perror("socket");
-        return 1;
-    }
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(%d);
-    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-        printf("connected");
-        return 0;
-    }
-
-    perror("connect");
-    return 1;
-}
-`, apiPort)
-			resp := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: netPayload, Timeout: 3, MaxMemory: 32768})
-			combined := strings.ToLower(resp.Output + "\n" + resp.Error)
-			if strings.Contains(combined, "connected") {
-				t.Fatalf("localhost bridge unexpectedly succeeded; stdout=%q stderr=%q", resp.Output, resp.Error)
-			}
-			if !containsAny(combined, []string{"connection refused", "network is unreachable", "no route to host"}) {
-				t.Fatalf("network isolation did not produce expected connect error; stdout=%q stderr=%q", resp.Output, resp.Error)
-			}
-		}},
-		{name: "memory hard limit triggers oom kill", run: func(t *testing.T) {
-			memoryBombPayload := `
-#define _GNU_SOURCE
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <sys/types.h>
-
-int main() {
-    const size_t chunk = 1024 * 1024;
-
-    for (int i = 0; i < 16; i++) {
-        pid_t p = fork();
-        if (p == 0) {
-            while (1) {
-                void *ptr = mmap(NULL, chunk, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-                memset(ptr, 0xAB, chunk);
-            }
-        }
-    }
-
-    while (1) {
-        pause();
-    }
-}
-`
-			resp := callSimpleExecute(t, baseURL, simpleExecuteRequest{Language: "c", Code: memoryBombPayload, Timeout: 3, MaxMemory: 16384})
-			if !containsAny(strings.ToLower(resp.Error), []string{"memory limit exceeded", "killed", "execution timed out"}) {
-				t.Fatalf("memory bomb did not terminate as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
-			}
-			execDur, err := time.ParseDuration(resp.CPUTime)
-			if err != nil {
-				t.Fatalf("failed to parse cpu_time %q: %v", resp.CPUTime, err)
-			}
-			if execDur > 500*time.Millisecond {
-				t.Fatalf("memory enforcement was too slow: cpu_time=%s stderr=%q", resp.CPUTime, resp.Error)
-			}
-		}},
+		{name: "file privacy across request IDs", run: testFilesystemIsolation},
+		{name: "disk spammer is terminated and data is reclaimed", run: testDiskCleanup},
+		{name: "fork bomb does not poison subsequent requests", run: testForkBombContainment},
+		{name: "network namespace blocks localhost bridge", run: testNetworkIsolation},
+		{name: "memory hard limit triggers oom kill", run: testMemoryHardLimit},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, tc.run)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { tc.run(t, h) })
 	}
+}
+
+func testFilesystemIsolation(t *testing.T, h integrationHarness) {
+	writeCode := mustLoadSampleCode(t, "file_privacy_write_read.c", nil)
+	writeResp := callSimpleExecute(t, h.baseURL, buildCRequest(writeCode, 4, 32768))
+	if !strings.Contains(writeResp.Output, "SecretData123") {
+		t.Fatalf("step A did not return secret in stdout; stdout=%q stderr=%q", writeResp.Output, writeResp.Error)
+	}
+
+	readCode := mustLoadSampleCode(t, "file_privacy_read_only.c", nil)
+	readResp := callSimpleExecute(t, h.baseURL, buildCRequest(readCode, 4, 32768))
+	if !strings.Contains(strings.ToLower(readResp.Error), "no such file or directory") {
+		t.Fatalf("step B unexpectedly accessed file from another sandbox; stdout=%q stderr=%q", readResp.Output, readResp.Error)
+	}
+}
+
+func testDiskCleanup(t *testing.T, h integrationHarness) {
+	beforeFree := mustFreeBytes(t, os.TempDir())
+	beforeCount := countSandboxTempDirs(t)
+
+	code := mustLoadSampleCode(t, "disk_spammer.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 2, 32768))
+	stderrLower := strings.ToLower(resp.Error)
+	if !containsAny(stderrLower, []string{"execution timed out", "memory limit exceeded"}) {
+		t.Fatalf("disk spammer was not terminated as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+
+	time.Sleep(400 * time.Millisecond)
+	assertDiskReclaimed(t, beforeFree, mustFreeBytes(t, os.TempDir()))
+	assertNoSandboxLeak(t, beforeCount, countSandboxTempDirs(t))
+}
+
+func assertDiskReclaimed(t *testing.T, beforeFree, afterFree uint64) {
+	const maxResidual = uint64(20 * 1024 * 1024)
+	if beforeFree > afterFree && (beforeFree-afterFree) > maxResidual {
+		t.Fatalf("sandbox disk garbage appears to persist: free space dropped by %d bytes", beforeFree-afterFree)
+	}
+}
+
+func assertNoSandboxLeak(t *testing.T, beforeCount, afterCount int) {
+	if afterCount > beforeCount {
+		t.Fatalf("sandbox temp directories leaked: before=%d after=%d", beforeCount, afterCount)
+	}
+}
+
+func testForkBombContainment(t *testing.T, h integrationHarness) {
+	bombCode := mustLoadSampleCode(t, "fork_bomb.c", nil)
+	_ = callSimpleExecute(t, h.baseURL, buildCRequest(bombCode, 2, 32768))
+
+	helloCode := mustLoadSampleCode(t, "hello_world.c", nil)
+	helloResp := callSimpleExecute(t, h.baseURL, buildCRequest(helloCode, 4, 32768))
+	if !strings.Contains(helloResp.Output, "Hello World") {
+		t.Fatalf("follow-up request failed after fork bomb; stdout=%q stderr=%q", helloResp.Output, helloResp.Error)
+	}
+	if strings.Contains(strings.ToLower(helloResp.Error), "resource temporarily unavailable") {
+		t.Fatalf("follow-up request indicates host PID exhaustion; stderr=%q", helloResp.Error)
+	}
+}
+
+func testNetworkIsolation(t *testing.T, h integrationHarness) {
+	replacements := map[string]string{"__API_PORT__": strconv.Itoa(h.apiPort)}
+	code := mustLoadSampleCode(t, "network_localhost_bridge.c", replacements)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 3, 32768))
+
+	combined := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combined, "connected") {
+		t.Fatalf("localhost bridge unexpectedly succeeded; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if !containsAny(combined, []string{"connection refused", "network is unreachable", "no route to host"}) {
+		t.Fatalf("network isolation did not produce expected connect error; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
+func testMemoryHardLimit(t *testing.T, h integrationHarness) {
+	code := mustLoadSampleCode(t, "memory_bomb.c", nil)
+	resp := callSimpleExecute(t, h.baseURL, buildCRequest(code, 3, 16384))
+	if !containsAny(strings.ToLower(resp.Error), []string{"memory limit exceeded", "killed", "execution timed out"}) {
+		t.Fatalf("memory bomb did not terminate as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+
+	execDur, err := time.ParseDuration(resp.CPUTime)
+	if err != nil {
+		t.Fatalf("failed to parse cpu_time %q: %v", resp.CPUTime, err)
+	}
+	if execDur > 500*time.Millisecond {
+		t.Fatalf("memory enforcement was too slow: cpu_time=%s stderr=%q", resp.CPUTime, resp.Error)
+	}
+}
+
+func mustLoadSampleCode(t *testing.T, fileName string, replacements map[string]string) string {
+	t.Helper()
+	path := filepath.Join(sampleCodeDir, fileName)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read sample code %s: %v", path, err)
+	}
+
+	code := string(content)
+	for oldValue, newValue := range replacements {
+		code = strings.ReplaceAll(code, oldValue, newValue)
+	}
+	return code
+}
+
+func buildCRequest(code string, timeoutSec, maxMemoryKB uint) simpleExecuteRequest {
+	return simpleExecuteRequest{Language: "c", Code: code, Timeout: timeoutSec, MaxMemory: maxMemoryKB}
 }
 
 func callSimpleExecute(t *testing.T, baseURL string, req simpleExecuteRequest) simpleExecuteResponse {
@@ -315,7 +222,11 @@ func callSimpleExecute(t *testing.T, baseURL string, req simpleExecuteRequest) s
 		t.Fatalf("request failed: %v", err)
 	}
 	defer httpResp.Body.Close()
+	return decodeSimpleResponse(t, httpResp)
+}
 
+func decodeSimpleResponse(t *testing.T, httpResp *http.Response) simpleExecuteResponse {
+	t.Helper()
 	rawBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		t.Fatalf("failed to read response body: %v", err)
