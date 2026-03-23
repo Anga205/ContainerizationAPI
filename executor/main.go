@@ -12,18 +12,11 @@ import (
 )
 
 func Execute(req models.Request) (models.Response, error) {
-	if req.Language != "c" {
-		return models.Response{}, fmt.Errorf("unsupported language: %s", req.Language)
-	}
-	return executeCProgram(req)
-}
-
-func executeCProgram(req models.Request) (models.Response, error) {
-	ws, err := prepareWorkspace(req.Code)
+	ws, err := prepareWorkspace(req.Language, req.Code)
 	if err != nil {
 		return models.Response{}, err
 	}
-	defer func() { _ = osRemoveAll(ws.dir) }()
+	defer cleanupWorkspace(&ws)
 
 	compileErr, ok := compileWorkspace(ws)
 	if !ok {
@@ -36,10 +29,14 @@ func executeCProgram(req models.Request) (models.Response, error) {
 	}
 	defer cg.Close()
 
-	return executeSandboxedBinary(req, ws.dir, cg)
+	if err := prepareRuntimeMounts(&ws); err != nil {
+		return models.Response{}, err
+	}
+
+	return executeSandboxedBinary(req, ws, cg)
 }
 
-func executeSandboxedBinary(req models.Request, sandboxDir string, cg *resourcemanager.CgroupHandle) (models.Response, error) {
+func executeSandboxedBinary(req models.Request, ws sandboxWorkspace, cg *resourcemanager.CgroupHandle) (models.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), req.Timeout)
 	defer cancel()
 
@@ -49,7 +46,7 @@ func executeSandboxedBinary(req models.Request, sandboxDir string, cg *resourcem
 	}
 	defer syscall.Close(cgroupFD)
 
-	cmd, stdoutBuf, stderrBuf := buildCommandBuffers(req.Stdin, sandboxDir, cgroupFD)
+	cmd, stdoutBuf, stderrBuf := buildCommandBuffers(req.Stdin, ws, cgroupFD)
 	runErr := startSandbox(cmd)
 	if runErr != nil {
 		return models.Response{}, runErr
@@ -63,8 +60,8 @@ func executeSandboxedBinary(req models.Request, sandboxDir string, cg *resourcem
 	return finalizeResponse(cmd, stdoutBuf.String(), stderrBuf.String(), time.Since(start), observedPeak, timedOut, waitErr, cg)
 }
 
-func buildCommandBuffers(stdin, sandboxDir string, cgroupFD int) (*exec.Cmd, *limitedBuffer, *limitedBuffer) {
-	cmd := buildSandboxCommand(stdin, sandboxDir, cgroupFD)
+func buildCommandBuffers(stdin string, ws sandboxWorkspace, cgroupFD int) (*exec.Cmd, *limitedBuffer, *limitedBuffer) {
+	cmd := buildSandboxCommand(stdin, ws, cgroupFD)
 	stdoutBuf := newLimitedBuffer(1 << 20)
 	stderrBuf := newLimitedBuffer(1 << 20)
 	cmd.Stdout = stdoutBuf
@@ -85,4 +82,9 @@ func compileFailureResponse(stderr string) models.Response {
 
 func osRemoveAll(path string) error {
 	return os.RemoveAll(path)
+}
+
+func cleanupWorkspace(ws *sandboxWorkspace) {
+	cleanupRuntimeMounts(ws)
+	_ = osRemoveAll(ws.dir)
 }

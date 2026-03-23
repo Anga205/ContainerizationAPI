@@ -8,7 +8,7 @@ public class Main {
         try {
             System.out.print(Files.readString(p, StandardCharsets.UTF_8));
         } catch (Exception ex) {
-            System.err.println(ex.getMessage());
+            System.err.println("No such file or directory: " + ex.getMessage());
             System.exit(1);
         }
     }
