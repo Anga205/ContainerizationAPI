@@ -236,3 +236,72 @@ jobs:
         env:
           ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/privileged reboot syscall is denied' ./...
+
+  test-python3-suite:
+    name: "Language Gap: Python3 Security/Resilience Suite (Expected Fail)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev python3
+
+      - name: Run Python3 mirrored suite
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$' ./...
+
+  test-cpp-suite:
+    name: "Language Gap: C++ Security/Resilience Suite (Expected Fail)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ libc6-dev
+
+      - name: Run C++ mirrored suite
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationCpp$' ./...
+
+  test-java-suite:
+    name: "Language Gap: Java Security/Resilience Suite (Expected Fail)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev openjdk-21-jdk
+
+      - name: Run Java mirrored suite
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationJava$' ./...
