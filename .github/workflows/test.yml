@@ -1,0 +1,123 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  test-filesystem-isolation:
+    name: "Security: Filesystem Isolation (File Privacy)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run filesystem isolation subtest
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/file privacy across request IDs' ./...
+
+  test-disk-cleanup:
+    name: "Security: Disk Cleanup (Storage Exhaustion)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run disk cleanup subtest
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/disk spammer is terminated and data is reclaimed' ./...
+
+  test-fork-bomb:
+    name: "Resource: Fork Bomb Containment"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run fork bomb subtest
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/fork bomb does not poison subsequent requests' ./...
+
+  test-network-isolation:
+    name: "Security: Network Namespace (Localhost Bridge)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run network isolation subtest
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/network namespace blocks localhost bridge' ./...
+
+  test-memory-oom:
+    name: "Security: Memory Limit (Hard OOM)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run memory OOM subtest
+        env:
+          ENABLE_QUEUE: "false"
+        run: sudo -E go test -v -run 'TestContainerizationAPISecurityIntegration/memory hard limit triggers oom kill' ./...
