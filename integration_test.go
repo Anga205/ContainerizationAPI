@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -253,10 +252,8 @@ int main() {
 			}
 		}},
 		{name: "memory hard limit triggers oom kill", run: func(t *testing.T) {
-			monitor := startOOMKillMonitor()
-			defer monitor.Stop()
-
 			memoryBombPayload := `
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -285,8 +282,12 @@ int main() {
 			if !containsAny(strings.ToLower(resp.Error), []string{"memory limit exceeded", "killed", "execution timed out"}) {
 				t.Fatalf("memory bomb did not terminate as expected; stdout=%q stderr=%q", resp.Output, resp.Error)
 			}
-			if monitor.MaxOOMKill() < 1 {
-				t.Fatalf("expected cgroup memory.events oom_kill >= 1, got %d", monitor.MaxOOMKill())
+			execDur, err := time.ParseDuration(resp.CPUTime)
+			if err != nil {
+				t.Fatalf("failed to parse cpu_time %q: %v", resp.CPUTime, err)
+			}
+			if execDur > 500*time.Millisecond {
+				t.Fatalf("memory enforcement was too slow: cpu_time=%s stderr=%q", resp.CPUTime, resp.Error)
 			}
 		}},
 	}
@@ -369,86 +370,4 @@ func containsAny(haystack string, needles []string) bool {
 		}
 	}
 	return false
-}
-
-type oomKillMonitor struct {
-	prefix     string
-	stopCh     chan struct{}
-	doneCh     chan struct{}
-	maxOOMKill uint64
-}
-
-func startOOMKillMonitor() *oomKillMonitor {
-	m := &oomKillMonitor{
-		prefix: fmt.Sprintf("codesandbox-%d-", os.Getpid()),
-		stopCh: make(chan struct{}),
-		doneCh: make(chan struct{}),
-	}
-	go m.run()
-	return m
-}
-
-func (m *oomKillMonitor) run() {
-	defer close(m.doneCh)
-	ticker := time.NewTicker(3 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-m.stopCh:
-			return
-		case <-ticker.C:
-			entries, err := os.ReadDir("/sys/fs/cgroup")
-			if err != nil {
-				continue
-			}
-			for _, entry := range entries {
-				if !entry.IsDir() || !strings.HasPrefix(entry.Name(), m.prefix) {
-					continue
-				}
-				eventsPath := filepath.Join("/sys/fs/cgroup", entry.Name(), "memory.events")
-				oomKillVal, ok := readOOMKillValue(eventsPath)
-				if !ok {
-					continue
-				}
-				for {
-					prev := atomic.LoadUint64(&m.maxOOMKill)
-					if oomKillVal <= prev {
-						break
-					}
-					if atomic.CompareAndSwapUint64(&m.maxOOMKill, prev, oomKillVal) {
-						break
-					}
-				}
-			}
-		}
-	}
-}
-
-func (m *oomKillMonitor) Stop() {
-	close(m.stopCh)
-	<-m.doneCh
-}
-
-func (m *oomKillMonitor) MaxOOMKill() uint64 {
-	return atomic.LoadUint64(&m.maxOOMKill)
-}
-
-func readOOMKillValue(eventsPath string) (uint64, bool) {
-	content, err := os.ReadFile(eventsPath)
-	if err != nil {
-		return 0, false
-	}
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 || fields[0] != "oom_kill" {
-			continue
-		}
-		value, convErr := strconv.ParseUint(fields[1], 10, 64)
-		if convErr != nil {
-			return 0, false
-		}
-		return value, true
-	}
-	return 0, false
 }

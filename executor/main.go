@@ -59,12 +59,20 @@ func Execute(req models.Request) (models.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), req.Timeout)
 	defer cancel()
 
+	cgroupFD, err := cg.OpenFD()
+	if err != nil {
+		return models.Response{}, fmt.Errorf("failed to open cgroup fd: %w", err)
+	}
+	defer syscall.Close(cgroupFD)
+
 	runCmd := exec.Command("/program")
 	runCmd.Dir = "/"
 	runCmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
-		Chroot:     tmpDir,
-		Setpgid:    true,
+		Cloneflags:  syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
+		Chroot:      tmpDir,
+		Setpgid:     true,
+		UseCgroupFD: true,
+		CgroupFD:    cgroupFD,
 	}
 	if len(req.Stdin) > 0 {
 		runCmd.Stdin = strings.NewReader(req.Stdin)
@@ -78,18 +86,6 @@ func Execute(req models.Request) (models.Response, error) {
 	start := time.Now()
 	if err := runCmd.Start(); err != nil {
 		return models.Response{}, fmt.Errorf("failed to start sandboxed process: %w", err)
-	}
-
-	if err := applyProcessRlimits(runCmd.Process.Pid, req.MemoryLimit); err != nil {
-		_ = hardKillProcessGroup(runCmd.Process.Pid)
-		_, _ = runCmd.Process.Wait()
-		return models.Response{}, fmt.Errorf("failed to apply rlimits: %w", err)
-	}
-
-	if err := cg.AddPID(runCmd.Process.Pid); err != nil {
-		_ = hardKillProcessGroup(runCmd.Process.Pid)
-		_, _ = runCmd.Process.Wait()
-		return models.Response{}, fmt.Errorf("failed to add process to cgroup: %w", err)
 	}
 
 	// Track observed working-set usage while the process runs.
@@ -159,7 +155,22 @@ func Execute(req models.Request) (models.Response, error) {
 	memoryEvents := cg.ReadMemoryEvents()
 	memoryLimitTriggered := memoryEvents.OOM > 0 || memoryEvents.OOMKill > 0 || memoryEvents.Max > 0
 
+	if memoryLimitTriggered {
+		if stderrBuf.Len() > 0 && !strings.HasSuffix(stderrBuf.String(), "\n") {
+			stderrBuf.WriteByte('\n')
+		}
+		stderrBuf.WriteString("Memory limit exceeded")
+	}
+
 	if timedOut {
+		if memoryLimitTriggered {
+			return models.Response{
+				Stdout:        stdoutBuf.String(),
+				Stderr:        stderrBuf.String(),
+				ExecutionTime: runDuration,
+				MemoryUsed:    peakKB,
+			}, nil
+		}
 		if stderrBuf.Len() > 0 && !strings.HasSuffix(stderrBuf.String(), "\n") {
 			stderrBuf.WriteByte('\n')
 		}
@@ -179,13 +190,6 @@ func Execute(req models.Request) (models.Response, error) {
 		}
 	}
 
-	if memoryLimitTriggered {
-		if stderrBuf.Len() > 0 && !strings.HasSuffix(stderrBuf.String(), "\n") {
-			stderrBuf.WriteByte('\n')
-		}
-		stderrBuf.WriteString("Memory limit exceeded")
-	}
-
 	return models.Response{
 		Stdout:        stdoutBuf.String(),
 		Stderr:        stderrBuf.String(),
@@ -196,6 +200,14 @@ func Execute(req models.Request) (models.Response, error) {
 
 type cgroupHandle struct {
 	path string
+}
+
+func (c *cgroupHandle) OpenFD() (int, error) {
+	fd, err := unix.Open(c.path, unix.O_DIRECTORY|unix.O_RDONLY, 0)
+	if err != nil {
+		return -1, err
+	}
+	return fd, nil
 }
 
 type memoryEvents struct {
@@ -350,21 +362,6 @@ func (c *cgroupHandle) Close() {
 
 func bytesToKB(bytes uint64) uint {
 	return uint(math.Ceil(float64(bytes) / 1024.0))
-}
-
-func applyProcessRlimits(pid int, memoryLimitKB uint) error {
-	if memoryLimitKB == 0 {
-		return nil
-	}
-	limitBytes := uint64(memoryLimitKB) * 1024
-	rlim := &unix.Rlimit{Cur: limitBytes, Max: limitBytes}
-	if err := unix.Prlimit(pid, unix.RLIMIT_AS, rlim, nil); err != nil {
-		return err
-	}
-	if err := unix.Prlimit(pid, unix.RLIMIT_DATA, rlim, nil); err != nil {
-		return err
-	}
-	return nil
 }
 
 func hardKillProcessGroup(pid int) error {
