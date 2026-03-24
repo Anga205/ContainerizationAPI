@@ -666,7 +666,7 @@ func testPrivilegedSyscallDeniedForLanguage(t *testing.T, h integrationHarness, 
 
 func mustLoadSampleCode(t *testing.T, fileName string, replacements map[string]string) string {
 	t.Helper()
-	path := filepath.Join(sampleCodeDir, fileName)
+	path := resolveSampleCodePath(fileName)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read sample code %s: %v", path, err)
@@ -677,6 +677,18 @@ func mustLoadSampleCode(t *testing.T, fileName string, replacements map[string]s
 		code = strings.ReplaceAll(code, oldValue, newValue)
 	}
 	return code
+}
+
+func resolveSampleCodePath(fileName string) string {
+	ext := filepath.Ext(fileName)
+	stem := strings.TrimSuffix(fileName, ext)
+
+	entryName := "main" + ext
+	if ext == ".java" {
+		entryName = "Main.java"
+	}
+
+	return filepath.Join(sampleCodeDir, stem, entryName)
 }
 
 func buildCRequest(code string, timeoutSec, maxMemoryKB uint) simpleExecuteRequest {
