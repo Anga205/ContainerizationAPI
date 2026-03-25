@@ -6,6 +6,6 @@ import (
 
 func Setup(router *gin.Engine) {
 	router.GET("/", root)
-	router.POST("/execute", CallDispatcher)
-	router.POST("/simple-execute", SimpleDispatcher)
+	router.POST("/v2/execute", CallDispatcher)
+	router.POST("/execute", SimpleDispatcher)
 }

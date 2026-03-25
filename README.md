@@ -11,36 +11,24 @@ To **Host** this API, you need to have Linux or WSL (if you're on windows) or Ma
 
 ## Usage
 
-Using this API is designed to be as simple as possible, at it's core, it's just an HTTP request that you send to `/execute`, or `/simple-execute`
+Using this API is designed to be as simple as possible, at it's core, it's just an HTTP request that you send to `/v2/execute`, or `/execute`
 
 The following are the routes that this API makes available, click one to see it's documentation
 
-<details>
-<summary><h3>POST Route: /simple-execute (click to expand)</h3></summary>
-
-This route is a drop in replacement for [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI), just take the code where you called the old API and replace `https://codeapi.anga.codes/execute` with `${url}/simple-execute` and watch as ur response times get faster!.
+---
+### POST Route: /execute
+---
+This route is a drop in replacement for [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI), if you send any request to the API defined in that repository, it's actually going to be handled by this codebase (because it does the same exact thing but faster)
 
 This route takes 4 fields:
 
-1. `langauge`: The language of the code snippet.
-    <details>
-    <summary>Click to see supported languages</summary>
-
-    - python
-    - cpp
-    - c
-    - java
-
-    </details>
-
-2. `code`: The code snippet to be executed.
-3. `timeout` (optional field): The maximum number of seconds for which the code should run. If the code takes more time to execute than what it was allocated, it will be terminated.
-    - default (value assumed if you dont specify): **5 seconds**
-    - max (you can't allocate more seconds than this): **60 seconds**
-4. `max_memory` (optional field): The maximum memory in KB (kilobytes) that the code can use. If the code uses more memory than this, it will be terminated.
-    - default (value assumed if you dont specify): **32768KB** (or 32MB)
-    - max (you can't allocate more RAM than this): **131072KB** (or 128MB)
-5. `inputs` (optional field): This is an array of strings where every element is 1 line, its completely optional and you should use it if your code reads input from STDIN (like with python input() or scanf() in C), read example 4 to see usage
+| Parameter | Type | Description | Default | Limits | Additional Details |
+|-----------|------|-------------|---------|--------|-------------------|
+| **language** | `string` | The programming language of the code snippet to be executed. | *Required*<br>*(No default)* | *Must be one of the supported languages* | **Supported Languages:**<br>• `python` - Python 3.x<br>• `cpp` - C++ (GCC compiler)<br>• `c` - C (GCC compiler)<br>• `java` - Java (OpenJDK)<br><br>The language must exactly match one of these strings (case-sensitive, all lowercase). |
+| **code** | `string` | The actual source code to be executed. Use `\n` to represent line breaks within the string. | *Required*<br>*(No default)* | *No explicit size limit, but practical limits apply* | **Formatting Rules:**<br>• For single-line code: `"print('Hello')"`<br>• For multi-line code: `"line1\nline2\nline3"`<br><br>**Example:**<br>```json\n"code": "def hello():\n    print('world')\nhello()"\n```<br><br>All special characters in your code must be properly escaped for JSON. |
+| **timeout** | `integer` | Maximum execution time in **seconds**. If the code runs longer than this, it will be forcefully terminated. | `5` seconds | **Minimum:** `1` second<br>**Maximum:** `60` seconds | **Behavior:**<br>• When timeout is exceeded → execution stops immediately<br>• Returns error: `"Execution Timed Out"`<br>• `cpu_time` in response shows actual time before termination<br>• `output` will be empty (no partial output)<br><br>**Use Cases:**<br>• Prevent infinite loops<br>• Control costs for long-running code<br>• Ensure API responsiveness |
+| **max_memory** | `integer` | Maximum memory allocation in **KB (kilobytes)**. If the code exceeds this limit, it will be terminated immediately. | `32768` KB<br>(32 MB) | **Minimum:** `1024` KB (1 MB)<br>**Maximum:** `131072` KB (128 MB) | **Memory Conversions:**<br>• 1 MB = 1,024 KB<br>• 32 MB = 32,768 KB (default)<br>• 64 MB = 65,536 KB<br>• 128 MB = 131,072 KB (max)<br><br>**Behavior:**<br>• Monitored in real-time during execution<br>• Exceeding limit → immediate termination<br>• Returns error: `"Memory limit exceeded"`<br>• `memory_used` shows usage at termination<br><br>**Use Cases:**<br>• Prevent memory leaks<br>• Control resource usage for large data structures<br>• Ensure fair resource allocation |
+| **inputs** | `array` | An array of strings where **each element represents one line** of input. This is fed to the code via STDIN at runtime. | `[]`<br>(Empty array - no input) | *No explicit size limit, but practical limits apply* | **How It Works:**<br>• Each array element becomes one line of input<br>• Elements are provided in order as the code requests input<br>• Works with any language that reads from STDIN<br><br>**Example 1** (single input):<br>`["bob"]`<br><br>**Example 2** (multiple inputs):<br>`["bob", "alice"]`<br><br>**Example 3** (mixed types):<br>`["John", "25", "3.14"]`<br><br>**Language Examples:**<br>• Python: `input()` reads each element sequentially<br>• C: `scanf()` reads each element<br>• Java: `Scanner.nextLine()` reads each element<br>• C++: `cin >>` or `getline()` reads each element |
 
 *Note: the above mentioned default and max values can be modified by editing the environment variables mentioned at the bottom of this README*
 
@@ -50,15 +38,15 @@ This route takes 4 fields:
 
 ```json
 {
-    "language": "python",
-    "code": "print('Hello World')"
+    "language": "python",           // this is the language your code is going to be executed in
+    "code": "print('Hello World')"  // a string containing the code itself, with lines separated by \n
 }
 ```
 <details>
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/simple-execute' \
+curl --location 'https://codeapi.anga.codes/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -95,7 +83,7 @@ curl --location '${url}/simple-execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/simple-execute' \
+curl --location 'https://codeapi.anga.codes/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -133,7 +121,7 @@ curl --location '${url}/simple-execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/simple-execute' \
+curl --location 'https://codeapi.anga.codes/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -174,7 +162,7 @@ curl --location '${url}/simple-execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/simple-execute' \
+curl --location 'https://codeapi.anga.codes/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -202,31 +190,21 @@ curl --location '${url}/simple-execute' \
 
 </details>
 
-**Note**: the route `/simple-execute` also calls `/execute` under the hood, its just that the formatting for the input and output are slightly more easy to read and understand. 
-<details>
-    <summary><h3>POST Route: /execute</h3></summary>
+**Note**: the route `/execute` also calls `/v2/execute` under the hood, its just that the formatting for the input and output are slightly more easy to read and understand. 
+
+---
+### POST Route: /v2/execute</h3></summary>
+--- 
 
 This route takes 4 fields:
 
-1. `langauge`: The language of the code snippet.
-    <details>
-    <summary>Click to see supported languages</summary>
-
-    - python
-    - cpp
-    - c
-    - java
-
-    </details>
-
-2. `code`: The code snippet to be executed.
-3. `timeout` (optional field): The maximum number of **nanoseconds** for which the code should run. If the code takes more time to execute than what it was allocated, it will be terminated.
-    - default (value assumed if you dont specify): **5 seconds**
-    - max (you can't allocate more seconds than this): **60 seconds**
-4. `max_memory` (optional field): The maximum memory in KB (kilobytes) that the code can use. If the code uses more memory than this, it will be terminated.
-    - default (value assumed if you dont specify): **32768KB** (or 32MB)
-    - max (you can't allocate more RAM than this): **131072KB** (or 128MB)
-5. `inputs` (optional field): This is a single string that is fed to the code via STDIN at runtime, if you want multiple lines in STDIN then separate them with `\n`, its completely optional and you should use it if your code reads input from STDIN (like with python input() or scanf() in C), read example 4 to see usage
+| Parameter | Description | Default | Limits | Notes |
+|-----------|-------------|---------|--------|-------|
+| **language** | The programming language of the code snippet to be executed. | *Required* | *No default* | **Supported languages:**<br>• `python` - Python 3.x<br>• `cpp` - C++ (GCC)<br>• `c` - C (GCC)<br>• `java` - Java (OpenJDK) |
+| **code** | The actual source code to be executed. Use `\n` to represent line breaks within the string. | *Required* | *No explicit limit* | The code is executed in an isolated environment. For multi-line code, escape newlines as `\n` within the JSON string. |
+| **timeout** | Maximum execution time in **nanoseconds**. If the code runs longer than this, it will be forcefully terminated. | 5 seconds (5,000,000,000 ns) | **Maximum:** 60 seconds (60,000,000,000 ns) | ⚠️ **Important:** The value is specified in nanoseconds, not seconds. For example:<br>• 2 seconds = `2000000000`<br>• 30 seconds = `30000000000`<br>• 60 seconds = `60000000000` (max) |
+| **max_memory** | Maximum memory allocation in **KB (kilobytes)**. If the code exceeds this limit, it will be terminated immediately. | 32,768 KB (32 MB) | **Maximum:** 131,072 KB (128 MB) | Memory is monitored in real-time. When the limit is exceeded, execution stops and returns "Memory limit exceeded" error.<br><br>**Conversions:**<br>• 32 MB = 32,768 KB (default)<br>• 64 MB = 65,536 KB<br>• 128 MB = 131,072 KB (max) |
+| **inputs** | A single string containing all STDIN data. If your code reads input (e.g., `input()` in Python, `scanf()` in C, `Scanner` in Java), provide the input here. | *Empty (no input)* | *No explicit limit* | **For multiple lines:** Use `\n` to separate lines. The entire string is fed to STDIN exactly as provided.<br><br>**Example 1** (single input):<br>`"bob"`<br><br>**Example 2** (multiple inputs):<br>`"bob\nalice"`<br><br>**Example 3** (numeric input):<br>`"42\n100\n200"` |
 
 *Note: the above mentioned default and max values can be modified by editing the environment variables mentioned at the bottom of this README*
 
@@ -244,7 +222,7 @@ This route takes 4 fields:
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/execute' \
+curl --location 'https://codeapi.anga.codes/v2/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -281,7 +259,7 @@ curl --location '${url}/execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/execute' \
+curl --location 'https://codeapi.anga.codes/v2/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -319,7 +297,7 @@ curl --location '${url}/execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/execute' \
+curl --location 'https://codeapi.anga.codes/v2/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -357,7 +335,7 @@ curl --location '${url}/execute' \
 <summary>Click to copy curl command</summary>
 
 ```bash
-curl --location '${url}/execute' \
+curl --location 'https://codeapi.anga.codes/v2/execute' \
 --header 'Content-Type: application/json' \
 --data '{
     "language": "python",
@@ -378,8 +356,6 @@ curl --location '${url}/execute' \
     "memory_used": 25136
 }
 ```
-
-</details>
 
 ## Environment Variables
 
