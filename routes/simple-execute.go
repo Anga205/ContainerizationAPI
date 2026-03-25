@@ -3,7 +3,6 @@ package routes
 import (
 	"CodeSandboxAPI/dispatcher"
 	"CodeSandboxAPI/models"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,11 +16,10 @@ func SimpleDispatcher(c *gin.Context) {
 
 	convertedReq := req.ToRequest()
 	resp, err := dispatcher.Dispatch(convertedReq)
-	convertedResp := resp.ToSimpleResponse()
 	if err != nil {
-		fmt.Printf("Error during dispatch: %v\n", err)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
+	convertedResp := resp.ToSimpleResponse()
 	c.JSON(200, convertedResp)
 }

@@ -9,6 +9,8 @@ import (
 	"syscall"
 )
 
+var syscallMount = syscall.Mount
+
 type sandboxWorkspace struct {
 	dir            string
 	sourcePath     string
@@ -150,13 +152,23 @@ func prepareRuntimeMounts(ws *sandboxWorkspace) error {
 			cleanupRuntimeMounts(ws)
 			return fmt.Errorf("failed to prepare mount target %s: %w", target, err)
 		}
-		if err := syscall.Mount(source, target, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+		if err := bindMountReadOnly(source, target); err != nil {
 			cleanupRuntimeMounts(ws)
-			return fmt.Errorf("failed to bind mount %s -> %s: %w", source, target, err)
+			return fmt.Errorf("failed to prepare read-only bind mount %s -> %s: %w", source, target, err)
 		}
 		ws.mountedTargets = append(ws.mountedTargets, target)
 	}
 
+	return nil
+}
+
+func bindMountReadOnly(source, target string) error {
+	if err := syscallMount(source, target, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+		return err
+	}
+	if err := syscallMount("", target, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
+		return err
+	}
 	return nil
 }
 

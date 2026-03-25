@@ -137,6 +137,7 @@ func Dispatch(req models.Request) (models.Response, error) {
 func resetQueueStateForTests() {
 	queueLock.Lock()
 	requestQueue = nil
+	workerActive = false
 	queueCond.Broadcast()
 	queueLock.Unlock()
 }

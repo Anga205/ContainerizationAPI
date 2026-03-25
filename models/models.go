@@ -7,7 +7,7 @@ import (
 )
 
 type Request struct {
-	Language    string        `json:"language"`         // Programming language (e.g., "c", "python", "javascript")
+	Language    string        `json:"language"`         // Programming language (e.g., "c", "cpp", "java", "python")
 	Code        string        `json:"code"`             // Source code to execute
 	Timeout     time.Duration `json:"timeout"`          // time limit in nanoseconds
 	MemoryLimit uint          `json:"max_memory"`       // memory limit in KB
@@ -15,7 +15,7 @@ type Request struct {
 }
 
 type SimpleRequest struct {
-	Language    string   `json:"language"`         // Programming language (e.g., "c", "python", "javascript")
+	Language    string   `json:"language"`         // Programming language (e.g., "c", "cpp", "java", "python")
 	Code        string   `json:"code"`             // Source code to execute
 	Timeout     uint     `json:"timeout"`          // time limit in seconds
 	MemoryLimit uint     `json:"max_memory"`       // memory limit in KB

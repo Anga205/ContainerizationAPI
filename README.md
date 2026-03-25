@@ -1,8 +1,8 @@
 # ContainerizationAPI
 
-The general idea of this project is to provide a service similar to the [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI) by [The Alcoding Club](github.com/thealcodingclub) but to manually implement the containerization using cgroups, namespaces, chroot and a bunch of other unix/linux utility tools. This will help accomplish faster execution times and cut down on sandboxing overhead
+The general idea of this project is to provide a service similar to the [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI) by [The Alcoding Club](https://github.com/thealcodingclub) but to manually implement the containerization using cgroups, namespaces, chroot and a bunch of other unix/linux utility tools. This will help accomplish faster execution times and cut down on sandboxing overhead
 
-I'm making this as part of a bigger project to host my own coding contests on a platform a little better than hackerrank. The Alcoding Club's API is fine but I need one thats more efficient and has less overhead than firejail.
+I'm making this as part of a bigger project to host my own coding contests on a platform a little better than HackerRank. The Alcoding Club's API is fine but I need one that's more efficient and has less overhead than firejail.
 
 ## Requirements
 
@@ -375,7 +375,7 @@ curl --location 'https://codeapi.anga.codes/v2/execute' \
     - same format as `MAX_MEMORY_LIMIT`
     - if you dont set this env variable, it defaults to `32 MB`
     - the public version of this api has this value set to `32 MB`
-- `RAM_LIMIT`: The total amount of RAM that is available globally to the server, cumulatively, the API will not allocate more RAM than what you define here, for example, if RAM limit if 1GB, and there are already 10 sandboxes that have reserved 100MB (either by default or by user-specification in the `max_memory` parameter) and an 11th process tries to reserve even more RAM, the server will NOT allocate that RAM
+- `GLOBAL_RAM_LIMIT`: The total amount of RAM that is available globally to the server, cumulatively, the API will not allocate more RAM than what you define here, for example, if RAM limit if 1GB, and there are already 10 sandboxes that have reserved 100MB (either by default or by user-specification in the `max_memory` parameter) and an 11th process tries to reserve even more RAM, the server will NOT allocate that RAM
     - same format as `MAX_MEMORY_LIMIT`
     - default value is `1048576` or `1 GB`
     - public version of this API sets this to `6 GB`
@@ -387,7 +387,7 @@ curl --location 'https://codeapi.anga.codes/v2/execute' \
     - same format as `ENABLE_QUEUE`
     - by default this is `false`
     - the public API has this set to `true`
-- `GIN_MODE`: wether to run the gonic-gin server in release mode or debug mode, for this API there wont be much of a performance difference regardless of which one you pick, it is reccomended that you read the docs for [gonic gin](https://gin-gonic.com/en/docs/deployment/#configuration-options) for more information
+- `GIN_MODE`: whether to run the gin-gonic server in release mode or debug mode. For this API there won't be much of a performance difference regardless of which one you pick, and it is recommended that you read the docs for [gin-gonic](https://gin-gonic.com/en/docs/deployment/#configuration-options) for more information
     - this can be set to `release` or `debug`
     - by default it is set to `debug`
     - the public API has this set to `release`
