@@ -114,7 +114,38 @@ func prepareRuntimeMounts(ws *sandboxWorkspace) error {
 	}
 
 	for _, source := range ws.runtimeMounts {
+		sourceInfo, err := os.Lstat(source)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			cleanupRuntimeMounts(ws)
+			return fmt.Errorf("failed to inspect runtime mount source %s: %w", source, err)
+		}
+
 		target := filepath.Join(ws.dir, strings.TrimPrefix(source, "/"))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			cleanupRuntimeMounts(ws)
+			return fmt.Errorf("failed to prepare mount target %s: %w", target, err)
+		}
+
+		if sourceInfo.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := os.Readlink(source)
+			if err != nil {
+				cleanupRuntimeMounts(ws)
+				return fmt.Errorf("failed to read runtime mount symlink %s: %w", source, err)
+			}
+			if err := os.RemoveAll(target); err != nil {
+				cleanupRuntimeMounts(ws)
+				return fmt.Errorf("failed to reset symlink target %s: %w", target, err)
+			}
+			if err := os.Symlink(linkTarget, target); err != nil {
+				cleanupRuntimeMounts(ws)
+				return fmt.Errorf("failed to mirror symlink %s -> %s: %w", target, linkTarget, err)
+			}
+			continue
+		}
+
 		if err := os.MkdirAll(target, 0o755); err != nil {
 			cleanupRuntimeMounts(ws)
 			return fmt.Errorf("failed to prepare mount target %s: %w", target, err)
