@@ -718,7 +718,7 @@ func callSimpleExecute(t *testing.T, baseURL string, req simpleExecuteRequest) s
 		t.Fatalf("failed to marshal request: %v", err)
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/simple-execute", bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/execute", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
