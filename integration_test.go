@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"CodeSandboxAPI/config"
+	"CodeSandboxAPI/resourcemanager"
 	"CodeSandboxAPI/routes"
 	"bytes"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -151,6 +153,51 @@ func TestContainerizationAPISecurityIntegrationJava(t *testing.T) {
 	h := integrationHarness{baseURL: testServer.URL}
 	h.apiPort = mustExtractPort(t, h.baseURL)
 	runLanguageMirrorSuite(t, h, "java", "java")
+}
+
+func TestQueueDisabledRejectsHalfRequestsUnderLoad(t *testing.T) {
+	baseURL := startQueueLoadTestServer(t, false)
+	req := buildLanguageRequest("python", "import time;time.sleep(2)", 5, 131072)
+
+	results := runConcurrentSimpleExecuteRequests(baseURL, req, 10)
+
+	overloaded := 0
+	for i, result := range results {
+		if result.err != nil {
+			t.Fatalf("request %d failed unexpectedly: %v", i, result.err)
+		}
+		if result.response.Error == "Server is overloaded, please try again later" {
+			overloaded++
+		}
+	}
+
+	if overloaded != 5 {
+		t.Fatalf("expected exactly 5 overloaded responses, got %d", overloaded)
+	}
+}
+
+func TestQueueEnabledQueuesHalfRequestsUnderLoad(t *testing.T) {
+	baseURL := startQueueLoadTestServer(t, true)
+	req := buildLanguageRequest("python", "import time;time.sleep(2)", 5, 131072)
+
+	results := runConcurrentSimpleExecuteRequests(baseURL, req, 10)
+
+	delayed := 0
+	for i, result := range results {
+		if result.err != nil {
+			t.Fatalf("request %d failed unexpectedly: %v", i, result.err)
+		}
+		if result.response.Error != "" {
+			t.Fatalf("request %d returned unexpected error: %q", i, result.response.Error)
+		}
+		if result.elapsed >= 3500*time.Millisecond {
+			delayed++
+		}
+	}
+
+	if delayed != 5 {
+		t.Fatalf("expected exactly 5 delayed responses, got %d", delayed)
+	}
 }
 
 func runLanguageMirrorSuite(t *testing.T, h integrationHarness, language, ext string) {
@@ -711,42 +758,119 @@ func buildLanguageRequest(language, code string, timeoutSec, maxMemoryKB uint) s
 	return simpleExecuteRequest{Language: language, Code: code, Timeout: timeoutSec, MaxMemory: maxMemoryKB}
 }
 
+type concurrentSimpleExecuteResult struct {
+	response simpleExecuteResponse
+	elapsed  time.Duration
+	err      error
+}
+
+func startQueueLoadTestServer(t *testing.T, enableQueue bool) string {
+	t.Helper()
+
+	t.Setenv("ENABLE_QUEUE", strconv.FormatBool(enableQueue))
+	t.Setenv("GLOBAL_RAM_LIMIT", "524288")
+
+	originalQueue := config.Config.Globals.ENABLE_QUEUE
+	originalRAMLimit := config.Config.Globals.RAM_LIMIT
+
+	config.Config.Globals.ENABLE_QUEUE = enableQueue
+	config.Config.Globals.RAM_LIMIT = 524288
+	resourcemanager.ResetRAMForTests(config.Config.Globals.RAM_LIMIT)
+
+	t.Cleanup(func() {
+		config.Config.Globals.ENABLE_QUEUE = originalQueue
+		config.Config.Globals.RAM_LIMIT = originalRAMLimit
+		resourcemanager.ResetRAMForTests(config.Config.Globals.RAM_LIMIT)
+	})
+
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	routes.Setup(router)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	return server.URL
+}
+
+func runConcurrentSimpleExecuteRequests(baseURL string, req simpleExecuteRequest, count int) []concurrentSimpleExecuteResult {
+	results := make([]concurrentSimpleExecuteResult, count)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(count)
+
+	for i := 0; i < count; i++ {
+		go func(index int) {
+			defer wg.Done()
+			<-start
+
+			startedAt := time.Now()
+			resp, err := callSimpleExecuteRaw(baseURL, req)
+			results[index] = concurrentSimpleExecuteResult{
+				response: resp,
+				elapsed:  time.Since(startedAt),
+				err:      err,
+			}
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+	return results
+}
+
 func callSimpleExecute(t *testing.T, baseURL string, req simpleExecuteRequest) simpleExecuteResponse {
 	t.Helper()
+	resp, err := callSimpleExecuteRaw(baseURL, req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	return resp
+}
+
+func callSimpleExecuteRaw(baseURL string, req simpleExecuteRequest) (simpleExecuteResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
+		return simpleExecuteResponse{}, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/execute", bytes.NewReader(body))
 	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
+		return simpleExecuteResponse{}, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	httpResp, err := httpClient.Do(httpReq)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		return simpleExecuteResponse{}, fmt.Errorf("request failed: %w", err)
 	}
 	defer httpResp.Body.Close()
-	return decodeSimpleResponse(t, httpResp)
+	return decodeSimpleResponseRaw(httpResp)
 }
 
 func decodeSimpleResponse(t *testing.T, httpResp *http.Response) simpleExecuteResponse {
 	t.Helper()
+	resp, err := decodeSimpleResponseRaw(httpResp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func decodeSimpleResponseRaw(httpResp *http.Response) (simpleExecuteResponse, error) {
 	rawBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
+		return simpleExecuteResponse{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 	if httpResp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected HTTP status %d: %s", httpResp.StatusCode, strings.TrimSpace(string(rawBody)))
+		return simpleExecuteResponse{}, fmt.Errorf("unexpected HTTP status %d: %s", httpResp.StatusCode, strings.TrimSpace(string(rawBody)))
 	}
 
 	var parsed simpleExecuteResponse
 	if err := json.Unmarshal(rawBody, &parsed); err != nil {
-		t.Fatalf("failed to decode response JSON: %v; body=%q", err, strings.TrimSpace(string(rawBody)))
+		return simpleExecuteResponse{}, fmt.Errorf("failed to decode response JSON: %w; body=%q", err, strings.TrimSpace(string(rawBody)))
 	}
-	return parsed
+	return parsed, nil
 }
 
 func mustExtractPort(t *testing.T, serverURL string) int {

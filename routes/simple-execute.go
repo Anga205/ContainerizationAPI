@@ -17,8 +17,10 @@ func SimpleDispatcher(c *gin.Context) {
 	convertedReq := req.ToRequest()
 	resp, err := dispatcher.Dispatch(convertedReq)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Internal server error"})
-		return
+		if resp.Stderr == "" {
+			c.JSON(500, gin.H{"error": "Internal server error"})
+			return
+		}
 	}
 	convertedResp := resp.ToSimpleResponse()
 	c.JSON(200, convertedResp)
