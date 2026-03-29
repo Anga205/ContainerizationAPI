@@ -26,8 +26,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run filesystem isolation subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^file privacy across request IDs$' ./...
 
   test-disk-cleanup:
@@ -49,8 +47,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run disk cleanup subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^disk spammer is terminated and data is reclaimed$' ./...
 
   test-fork-bomb:
@@ -72,8 +68,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run fork bomb subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^fork bomb does not poison subsequent requests$' ./...
 
   test-network-isolation:
@@ -95,8 +89,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run network isolation subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^network namespace blocks localhost bridge$' ./...
 
   test-memory-oom:
@@ -118,8 +110,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run memory OOM subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^memory hard limit triggers oom kill$' ./...
 
   test-io-flood:
@@ -141,8 +131,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run I/O flood resilience subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^io flood is bounded and returns before timeout$' ./...
 
   test-signal-trap:
@@ -164,8 +152,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run signal trap resilience subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^signal trap cannot survive forced timeout$' ./...
 
   test-orphan-reaping:
@@ -187,8 +173,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run orphan reaping resilience subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^orphan grandchild is reaped after request exits$' ./...
 
   test-inode-exhaustion:
@@ -210,8 +194,6 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run inode exhaustion resilience subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^inode bomb does not poison host temp filesystem$' ./...
 
   test-privileged-syscall:
@@ -233,6 +215,4 @@ jobs:
           sudo apt-get install -y gcc libc6-dev python3
 
       - name: Run privileged syscall denial subtest
-        env:
-          ENABLE_QUEUE: "false"
         run: sudo -E go test -v -run '^TestContainerizationAPISecurityIntegrationPython3$/^privileged reboot syscall is denied$' ./...

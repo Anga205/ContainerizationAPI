@@ -379,12 +379,8 @@ curl --location 'https://codeapi.anga.codes/v2/execute' \
     - same format as `MAX_MEMORY_LIMIT`
     - default value is `1048576` or `1 GB`
     - public version of this API sets this to `6 GB`
-- `ENABLE_QUEUE`: if false, the server will reject requests when ram limit is reached, if true, the server will queue requests until sufficient ram is available
-    - this can only be set to `true` or `false`
-    - by default this is `true`
-    - the publically deployed API has this set to `true`
 - `ENABLE_DEBUG`: if true, the server will expose debug routes (like `/check-ram`) for monitoring and debugging purposes
-    - same format as `ENABLE_QUEUE`
+    - this can only be set to `true` or `false`
     - by default this is `false`
     - the public API has this set to `true`
 - `GIN_MODE`: whether to run the gin-gonic server in release mode or debug mode. For this API there won't be much of a performance difference regardless of which one you pick, and it is recommended that you read the docs for [gin-gonic](https://gin-gonic.com/en/docs/deployment/#configuration-options) for more information

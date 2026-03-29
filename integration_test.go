@@ -54,7 +54,6 @@ var (
 
 func TestMain(m *testing.M) {
 	enforceRootAndCompiler()
-	config.Config.Globals.ENABLE_QUEUE = false
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -78,10 +77,6 @@ func enforceRootAndCompiler() {
 }
 
 func TestContainerizationAPISecurityIntegration(t *testing.T) {
-	if config.Config.Globals.ENABLE_QUEUE {
-		t.Fatal("ENABLE_QUEUE must be false for integration tests")
-	}
-
 	h := integrationHarness{baseURL: testServer.URL}
 	h.apiPort = mustExtractPort(t, h.baseURL)
 
@@ -107,10 +102,6 @@ func TestContainerizationAPISecurityIntegration(t *testing.T) {
 }
 
 func TestContainerizationAPISecurityIntegrationPython3(t *testing.T) {
-	if config.Config.Globals.ENABLE_QUEUE {
-		t.Fatal("ENABLE_QUEUE must be false for integration tests")
-	}
-
 	h := integrationHarness{baseURL: testServer.URL}
 	h.apiPort = mustExtractPort(t, h.baseURL)
 
@@ -136,27 +127,19 @@ func TestContainerizationAPISecurityIntegrationPython3(t *testing.T) {
 }
 
 func TestContainerizationAPISecurityIntegrationCpp(t *testing.T) {
-	if config.Config.Globals.ENABLE_QUEUE {
-		t.Fatal("ENABLE_QUEUE must be false for integration tests")
-	}
-
 	h := integrationHarness{baseURL: testServer.URL}
 	h.apiPort = mustExtractPort(t, h.baseURL)
 	runLanguageMirrorSuite(t, h, "cpp", "cpp")
 }
 
 func TestContainerizationAPISecurityIntegrationJava(t *testing.T) {
-	if config.Config.Globals.ENABLE_QUEUE {
-		t.Fatal("ENABLE_QUEUE must be false for integration tests")
-	}
-
 	h := integrationHarness{baseURL: testServer.URL}
 	h.apiPort = mustExtractPort(t, h.baseURL)
 	runLanguageMirrorSuite(t, h, "java", "java")
 }
 
-func TestQueueDisabledRejectsHalfRequestsUnderLoad(t *testing.T) {
-	baseURL := startQueueLoadTestServer(t, false)
+func TestOverloadedRejectsHalfRequestsUnderLoad(t *testing.T) {
+	baseURL := startOverloadLoadTestServer(t)
 	req := buildLanguageRequest("python", "import time;time.sleep(2)", 5, 131072)
 
 	results := runConcurrentSimpleExecuteRequests(baseURL, req, 10)
@@ -173,30 +156,6 @@ func TestQueueDisabledRejectsHalfRequestsUnderLoad(t *testing.T) {
 
 	if overloaded != 5 {
 		t.Fatalf("expected exactly 5 overloaded responses, got %d", overloaded)
-	}
-}
-
-func TestQueueEnabledQueuesHalfRequestsUnderLoad(t *testing.T) {
-	baseURL := startQueueLoadTestServer(t, true)
-	req := buildLanguageRequest("python", "import time;time.sleep(2)", 5, 131072)
-
-	results := runConcurrentSimpleExecuteRequests(baseURL, req, 10)
-
-	delayed := 0
-	for i, result := range results {
-		if result.err != nil {
-			t.Fatalf("request %d failed unexpectedly: %v", i, result.err)
-		}
-		if result.response.Error != "" {
-			t.Fatalf("request %d returned unexpected error: %q", i, result.response.Error)
-		}
-		if result.elapsed >= 3500*time.Millisecond {
-			delayed++
-		}
-	}
-
-	if delayed != 5 {
-		t.Fatalf("expected exactly 5 delayed responses, got %d", delayed)
 	}
 }
 
@@ -764,21 +723,17 @@ type concurrentSimpleExecuteResult struct {
 	err      error
 }
 
-func startQueueLoadTestServer(t *testing.T, enableQueue bool) string {
+func startOverloadLoadTestServer(t *testing.T) string {
 	t.Helper()
 
-	t.Setenv("ENABLE_QUEUE", strconv.FormatBool(enableQueue))
 	t.Setenv("GLOBAL_RAM_LIMIT", "524288")
 
-	originalQueue := config.Config.Globals.ENABLE_QUEUE
 	originalRAMLimit := config.Config.Globals.RAM_LIMIT
 
-	config.Config.Globals.ENABLE_QUEUE = enableQueue
 	config.Config.Globals.RAM_LIMIT = 524288
 	resourcemanager.ResetRAMForTests(config.Config.Globals.RAM_LIMIT)
 
 	t.Cleanup(func() {
-		config.Config.Globals.ENABLE_QUEUE = originalQueue
 		config.Config.Globals.RAM_LIMIT = originalRAMLimit
 		resourcemanager.ResetRAMForTests(config.Config.Globals.RAM_LIMIT)
 	})
