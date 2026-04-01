@@ -9,10 +9,16 @@ import (
 )
 
 var (
-	reserveRAM = resourcemanager.ReserveRAM
-	releaseRAM = resourcemanager.ReleaseRAM
-	execute    = executor.Execute
+	reserveRAM   = resourcemanager.ReserveRAM
+	releaseRAM   = resourcemanager.ReleaseRAM
+	execute      = executor.Execute
+	workerActive bool
 )
+
+// resetQueueStateForTests resets dispatcher worker state between tests.
+func resetQueueStateForTests() {
+	workerActive = false
+}
 
 func normalizeRequest(req models.Request) models.Request {
 	if req.Timeout == 0 {
