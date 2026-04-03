@@ -26,8 +26,8 @@ func finalizeResponse(
 	if timedOut && !limitHit {
 		stderr = appendTimeoutError(stderr)
 	}
-	if runErr != nil && isExitError(runErr) && strings.TrimSpace(stderr) == "" {
-		stderr = runErr.Error()
+	if runErr != nil && isExitError(runErr) {
+		stderr = appendExitDiagnostic(stderr, runErr)
 	}
 	if runErr != nil && !isExitError(runErr) {
 		return models.Response{}, fmt.Errorf("execution failed: %w", runErr)
@@ -88,6 +88,63 @@ func appendErrorLine(stderr, message string) string {
 func isExitError(err error) bool {
 	_, ok := err.(*exec.ExitError)
 	return ok
+}
+
+func appendExitDiagnostic(stderr string, err error) string {
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		return appendErrorLine(stderr, err.Error())
+	}
+
+	detail := formatExitDiagnostic(exitErr)
+	if detail == "" {
+		detail = exitErr.Error()
+	}
+	return appendErrorLine(stderr, detail)
+}
+
+func formatExitDiagnostic(exitErr *exec.ExitError) string {
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok {
+		return exitErr.Error()
+	}
+
+	if status.Signaled() {
+		sig := status.Signal()
+		base := fmt.Sprintf("Process terminated by signal %s (%d): %s", signalName(sig), int(sig), sig.String())
+		if sig == syscall.SIGSYS {
+			return base + "; likely blocked by sandbox seccomp policy"
+		}
+		return base
+	}
+
+	if status.Exited() {
+		code := status.ExitStatus()
+		if code != 0 {
+			return fmt.Sprintf("Process exited with non-zero status %d", code)
+		}
+	}
+
+	return exitErr.Error()
+}
+
+func signalName(sig syscall.Signal) string {
+	switch sig {
+	case syscall.SIGKILL:
+		return "SIGKILL"
+	case syscall.SIGSEGV:
+		return "SIGSEGV"
+	case syscall.SIGABRT:
+		return "SIGABRT"
+	case syscall.SIGSYS:
+		return "SIGSYS"
+	case syscall.SIGXCPU:
+		return "SIGXCPU"
+	case syscall.SIGTERM:
+		return "SIGTERM"
+	default:
+		return fmt.Sprintf("SIG%d", int(sig))
+	}
 }
 
 func bytesToKB(bytes uint64) uint {
