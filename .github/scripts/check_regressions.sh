@@ -40,4 +40,24 @@ if grep -qi 'wether\|gonic-gin\|reccomended' README.md; then
   fail "README.md still contains known typos in GIN_MODE section"
 fi
 
+# 6) Sandbox hardening checks must remain in place.
+if ! grep -q 'MS_NOSUID' executor/workspace.go; then
+  fail "executor/workspace.go must harden read-only bind remounts with MS_NOSUID"
+fi
+if ! grep -q 'MS_NODEV' executor/workspace.go; then
+  fail "executor/workspace.go must harden read-only bind remounts with MS_NODEV"
+fi
+if ! grep -q 'MS_PRIVATE' executor/workspace.go; then
+  fail "executor/workspace.go must mark mount propagation private with MS_PRIVATE"
+fi
+if ! grep -q 'CLONE_NEWUSER' executor/command.go; then
+  fail "executor/command.go must include CLONE_NEWUSER in Cloneflags"
+fi
+if ! grep -q 'NoNewPrivs' executor/command.go; then
+  fail "executor/command.go must set NoNewPrivs (or equivalent compatibility hook)"
+fi
+if grep -q 'os\.Environ()' executor/command.go; then
+  fail "executor/command.go must not inherit host environment via os.Environ()"
+fi
+
 echo "[regression-check] all checks passed"

@@ -22,6 +22,9 @@ func Execute(req models.Request) (models.Response, error) {
 	if !ok {
 		return compileFailureResponse(compileErr), nil
 	}
+	if err := ensureSandboxInitBinary(&ws); err != nil {
+		return models.Response{}, err
+	}
 
 	cg, err := resourcemanager.NewCgroupV2(req.MemoryLimit)
 	if err != nil {

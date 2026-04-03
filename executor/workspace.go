@@ -12,15 +12,17 @@ import (
 var syscallMount = syscall.Mount
 
 type sandboxWorkspace struct {
-	dir            string
-	sourcePath     string
-	binaryPath     string
-	compileCommand []string
-	runCommand     []string
-	extraEnv       []string
-	useChroot      bool
-	runtimeMounts  []string
-	mountedTargets []string
+	dir                 string
+	sourcePath          string
+	binaryPath          string
+	sandboxInitHostPath string
+	sandboxInitExecPath string
+	compileCommand      []string
+	runCommand          []string
+	extraEnv            []string
+	useChroot           bool
+	runtimeMounts       []string
+	mountedTargets      []string
 }
 
 func prepareWorkspace(language, code string) (sandboxWorkspace, error) {
@@ -28,12 +30,20 @@ func prepareWorkspace(language, code string) (sandboxWorkspace, error) {
 	if err != nil {
 		return sandboxWorkspace{}, fmt.Errorf("failed to create sandbox dir: %w", err)
 	}
+	if err := os.Chown(dir, 65534, 65534); err != nil {
+		_ = os.RemoveAll(dir)
+		return sandboxWorkspace{}, fmt.Errorf("failed to set sandbox dir ownership: %w", err)
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		_ = os.RemoveAll(dir)
+		return sandboxWorkspace{}, fmt.Errorf("failed to set sandbox dir permissions: %w", err)
+	}
 	ws, err := buildWorkspacePlan(dir, language)
 	if err != nil {
 		_ = os.RemoveAll(dir)
 		return sandboxWorkspace{}, err
 	}
-	if err := os.WriteFile(ws.sourcePath, []byte(code), 0o600); err != nil {
+	if err := os.WriteFile(ws.sourcePath, []byte(code), 0o644); err != nil {
 		_ = os.RemoveAll(dir)
 		return sandboxWorkspace{}, fmt.Errorf("failed to write source: %w", err)
 	}
@@ -42,7 +52,12 @@ func prepareWorkspace(language, code string) (sandboxWorkspace, error) {
 
 func buildWorkspacePlan(dir, language string) (sandboxWorkspace, error) {
 	normalized := normalizeLanguage(language)
-	ws := sandboxWorkspace{dir: dir, binaryPath: filepath.Join(dir, "program")}
+	ws := sandboxWorkspace{
+		dir:                 dir,
+		binaryPath:          filepath.Join(dir, "program"),
+		sandboxInitHostPath: filepath.Join(dir, "sandbox-init"),
+		sandboxInitExecPath: "/sandbox-init",
+	}
 
 	switch normalized {
 	case "c":
@@ -115,6 +130,11 @@ func prepareRuntimeMounts(ws *sandboxWorkspace) error {
 		return nil
 	}
 
+	if err := syscallMount("", "/", "", syscall.MS_REC|syscall.MS_PRIVATE, ""); err != nil {
+		cleanupRuntimeMounts(ws)
+		return fmt.Errorf("failed to mark root mount propagation private: %w", err)
+	}
+
 	for _, source := range ws.runtimeMounts {
 		sourceInfo, err := os.Lstat(source)
 		if os.IsNotExist(err) {
@@ -166,7 +186,7 @@ func bindMountReadOnly(source, target string) error {
 	if err := syscallMount(source, target, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
 		return err
 	}
-	if err := syscallMount("", target, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
+	if err := syscallMount("", target, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_NOSUID|syscall.MS_NODEV|syscall.MS_REC, ""); err != nil {
 		return err
 	}
 	return nil

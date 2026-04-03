@@ -5,6 +5,7 @@ import (
 	"CodeSandboxAPI/resourcemanager"
 	"CodeSandboxAPI/routes"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -138,11 +139,24 @@ func TestContainerizationAPISecurityIntegrationJava(t *testing.T) {
 	runLanguageMirrorSuite(t, h, "java", "java")
 }
 
+func TestSandboxHardeningC(t *testing.T) {
+	h := integrationHarness{baseURL: testServer.URL}
+	h.apiPort = mustExtractPort(t, h.baseURL)
+	runSandboxHardeningSuite(t, h, "c", "c")
+}
+
+func TestSandboxHardeningPython3(t *testing.T) {
+	h := integrationHarness{baseURL: testServer.URL}
+	h.apiPort = mustExtractPort(t, h.baseURL)
+	runSandboxHardeningSuite(t, h, "python3", "py")
+}
+
 func TestOverloadedRejectsHalfRequestsUnderLoad(t *testing.T) {
 	baseURL := startOverloadLoadTestServer(t)
 	req := buildLanguageRequest("python", "import time;time.sleep(2)", 5, 131072)
+	requestCount := 10
 
-	results := runConcurrentSimpleExecuteRequests(baseURL, req, 10)
+	results := runConcurrentSimpleExecuteRequests(baseURL, req, requestCount)
 
 	overloaded := 0
 	for i, result := range results {
@@ -154,8 +168,14 @@ func TestOverloadedRejectsHalfRequestsUnderLoad(t *testing.T) {
 		}
 	}
 
-	if overloaded != 5 {
-		t.Fatalf("expected exactly 5 overloaded responses, got %d", overloaded)
+	maxConcurrent := int(config.Config.Globals.RAM_LIMIT / req.MaxMemory)
+	if maxConcurrent > requestCount {
+		maxConcurrent = requestCount
+	}
+	expectedOverloaded := requestCount - maxConcurrent
+
+	if overloaded != expectedOverloaded {
+		t.Fatalf("expected exactly %d overloaded responses, got %d", expectedOverloaded, overloaded)
 	}
 }
 
@@ -202,6 +222,35 @@ func runLanguageMirrorSuite(t *testing.T, h integrationHarness, language, ext st
 		}},
 		{name: "privileged reboot syscall is denied", run: func(t *testing.T, h integrationHarness) {
 			testPrivilegedSyscallDeniedForLanguage(t, h, language, "try_reboot."+ext)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { tc.run(t, h) })
+	}
+}
+
+func runSandboxHardeningSuite(t *testing.T, h integrationHarness, language, ext string) {
+	t.Helper()
+
+	cases := []struct {
+		name string
+		run  func(*testing.T, integrationHarness)
+	}{
+		{name: "sandbox cannot write to host /etc/passwd", run: func(t *testing.T, h integrationHarness) {
+			testSandboxCannotWriteHostEtcPasswd(t, h, language, "etc_write_denied."+ext)
+		}},
+		{name: "remounting /etc read-write is denied", run: func(t *testing.T, h integrationHarness) {
+			testRemountingEtcReadWriteDenied(t, h, language, "remount_etc_rw_denied."+ext)
+		}},
+		{name: "sandbox process uid is not host root", run: func(t *testing.T, h integrationHarness) {
+			testSandboxProcessUIDIsNotHostRoot(t, h, language, "not_host_root."+ext)
+		}},
+		{name: "dangerous syscalls are blocked by seccomp", run: func(t *testing.T, h integrationHarness) {
+			testDangerousSyscallsBlockedBySeccomp(t, h, language, "dangerous_syscalls_seccomp."+ext)
+		}},
+		{name: "sandbox environment does not expose host", run: func(t *testing.T, h integrationHarness) {
+			testSandboxEnvironmentDoesNotExposeHost(t, h, language, "env_leak_probe."+ext)
 		}},
 	}
 
@@ -668,6 +717,97 @@ func testPrivilegedSyscallDeniedForLanguage(t *testing.T, h integrationHarness, 
 	if !containsAny(combinedLower, []string{"operation not permitted", "permission denied", "bad system call", "killed", "hangup"}) {
 		t.Fatalf("expected privileged syscall denial signal was not observed; stdout=%q stderr=%q", resp.Output, resp.Error)
 	}
+}
+
+func testSandboxCannotWriteHostEtcPasswd(t *testing.T, h integrationHarness, language, payload string) {
+	beforeChecksum := mustFileSHA256(t, "/etc/passwd")
+
+	code := mustLoadSampleCode(t, payload, nil)
+	resp := callSimpleExecute(t, h.baseURL, buildLanguageRequest(language, code, 3, 32768))
+
+	afterChecksum := mustFileSHA256(t, "/etc/passwd")
+	if beforeChecksum != afterChecksum {
+		t.Fatalf("host /etc/passwd checksum changed unexpectedly; before=%s after=%s", beforeChecksum, afterChecksum)
+	}
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combinedLower, "write succeeded") {
+		t.Fatalf("sandbox unexpectedly wrote to /etc/passwd; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if !strings.Contains(resp.Output, "write correctly denied") {
+		t.Fatalf("expected write denial marker in stdout; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
+func testRemountingEtcReadWriteDenied(t *testing.T, h integrationHarness, language, payload string) {
+	code := mustLoadSampleCode(t, payload, nil)
+	resp := callSimpleExecute(t, h.baseURL, buildLanguageRequest(language, code, 3, 32768))
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combinedLower, "remount succeeded") {
+		t.Fatalf("sandbox unexpectedly remounted /etc read-write; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if !strings.Contains(resp.Output, "remount correctly denied") {
+		t.Fatalf("expected remount denial marker in stdout; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
+func testSandboxProcessUIDIsNotHostRoot(t *testing.T, h integrationHarness, language, payload string) {
+	code := mustLoadSampleCode(t, payload, nil)
+	resp := callSimpleExecute(t, h.baseURL, buildLanguageRequest(language, code, 3, 32768))
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combinedLower, "is host root: bad") {
+		t.Fatalf("sandbox gained host-root-equivalent privileges; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if !strings.Contains(resp.Output, "not host root: ok") {
+		t.Fatalf("expected non-host-root marker in stdout; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
+func testDangerousSyscallsBlockedBySeccomp(t *testing.T, h integrationHarness, language, payload string) {
+	code := mustLoadSampleCode(t, payload, nil)
+	resp := callSimpleExecute(t, h.baseURL, buildLanguageRequest(language, code, 3, 32768))
+
+	combinedLower := strings.ToLower(resp.Output + "\n" + resp.Error)
+	if strings.Contains(combinedLower, "syscall succeeded unexpectedly") {
+		t.Fatalf("dangerous syscall unexpectedly succeeded; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if strings.Contains(resp.Output, "syscall denied: ok") {
+		return
+	}
+	if containsAny(combinedLower, []string{"bad system call", "sigsys"}) {
+		return
+	}
+	t.Fatalf("expected syscall denial signal was not observed; stdout=%q stderr=%q", resp.Output, resp.Error)
+}
+
+func testSandboxEnvironmentDoesNotExposeHost(t *testing.T, h integrationHarness, language, payload string) {
+	t.Setenv("SANDBOX_SECRET_CANARY", "super-secret")
+
+	code := mustLoadSampleCode(t, payload, nil)
+	resp := callSimpleExecute(t, h.baseURL, buildLanguageRequest(language, code, 3, 32768))
+
+	stdoutLower := strings.ToLower(resp.Output)
+	stderrLower := strings.ToLower(resp.Error)
+	if strings.Contains(stdoutLower, "env_leak:sandbox_secret_canary") {
+		t.Fatalf("sandbox leaked sentinel env var; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+	if strings.Contains(stdoutLower, "super-secret") || strings.Contains(stderrLower, "super-secret") {
+		t.Fatalf("sandbox leaked sentinel env var value; stdout=%q stderr=%q", resp.Output, resp.Error)
+	}
+}
+
+func mustFileSHA256(t *testing.T, path string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", path, err)
+	}
+
+	sum := sha256.Sum256(content)
+	return fmt.Sprintf("%x", sum)
 }
 
 func mustLoadSampleCode(t *testing.T, fileName string, replacements map[string]string) string {

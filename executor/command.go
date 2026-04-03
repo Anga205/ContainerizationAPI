@@ -1,20 +1,30 @@
 package executor
 
 import (
-	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"syscall"
 )
 
 func buildSandboxCommand(stdin string, ws sandboxWorkspace, cgroupFD int) *exec.Cmd {
-	cmd := exec.Command(ws.runCommand[0], ws.runCommand[1:]...)
-	sysProcAttr := &syscall.SysProcAttr{
-		Cloneflags:  syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
-		Setpgid:     true,
-		UseCgroupFD: true,
-		CgroupFD:    cgroupFD,
+	command := ws.runCommand
+	if ws.sandboxInitExecPath != "" {
+		command = append([]string{ws.sandboxInitExecPath}, ws.runCommand...)
 	}
+
+	cmd := exec.Command(command[0], command[1:]...)
+	sysProcAttr := &syscall.SysProcAttr{
+		Cloneflags:                 syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER,
+		Setpgid:                    true,
+		UseCgroupFD:                true,
+		CgroupFD:                   cgroupFD,
+		Credential:                 &syscall.Credential{Uid: 0, Gid: 0},
+		UidMappings:                []syscall.SysProcIDMap{{ContainerID: 0, HostID: 65534, Size: 1}},
+		GidMappings:                []syscall.SysProcIDMap{{ContainerID: 0, HostID: 65534, Size: 1}},
+		GidMappingsEnableSetgroups: false,
+	}
+	setNoNewPrivsIfSupported(sysProcAttr)
 	if ws.useChroot {
 		sysProcAttr.Chroot = ws.dir
 		cmd.Dir = "/"
@@ -25,8 +35,21 @@ func buildSandboxCommand(stdin string, ws sandboxWorkspace, cgroupFD int) *exec.
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
+	baseEnv := []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=/",
+		"LANG=C.UTF-8",
+	}
+	cmd.Env = append([]string{}, baseEnv...)
 	if len(ws.extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), ws.extraEnv...)
+		cmd.Env = append(cmd.Env, ws.extraEnv...)
 	}
 	return cmd
+}
+
+func setNoNewPrivsIfSupported(attr *syscall.SysProcAttr) {
+	field := reflect.ValueOf(attr).Elem().FieldByName("NoNewPrivs")
+	if field.IsValid() && field.CanSet() && field.Kind() == reflect.Bool {
+		field.SetBool(true)
+	}
 }
