@@ -8,6 +8,14 @@ import (
 )
 
 func buildSandboxCommand(stdin string, ws sandboxWorkspace, cgroupFD int) *exec.Cmd {
+	return buildSandboxCommandWithCgroupMode(stdin, ws, cgroupFD, true)
+}
+
+func buildSandboxCommandWithoutCgroupFD(stdin string, ws sandboxWorkspace) *exec.Cmd {
+	return buildSandboxCommandWithCgroupMode(stdin, ws, 0, false)
+}
+
+func buildSandboxCommandWithCgroupMode(stdin string, ws sandboxWorkspace, cgroupFD int, useCgroupFD bool) *exec.Cmd {
 	command := ws.runCommand
 	if ws.sandboxInitExecPath != "" {
 		command = append([]string{ws.sandboxInitExecPath}, ws.runCommand...)
@@ -17,7 +25,7 @@ func buildSandboxCommand(stdin string, ws sandboxWorkspace, cgroupFD int) *exec.
 	sysProcAttr := &syscall.SysProcAttr{
 		Cloneflags:                 syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER,
 		Setpgid:                    true,
-		UseCgroupFD:                true,
+		UseCgroupFD:                useCgroupFD,
 		CgroupFD:                   cgroupFD,
 		Credential:                 &syscall.Credential{Uid: 0, Gid: 0},
 		UidMappings:                []syscall.SysProcIDMap{{ContainerID: 0, HostID: 65534, Size: 1}},

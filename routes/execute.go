@@ -17,7 +17,10 @@ func CallDispatcher(c *gin.Context) {
 	resp, err := dispatcher.Dispatch(req)
 	if err != nil {
 		if resp.Stderr == "" {
-			c.JSON(500, gin.H{"error": "Internal server error"})
+			c.JSON(500, gin.H{
+				"error":   "Sandbox execution failed",
+				"details": err.Error(),
+			})
 			return
 		}
 	}

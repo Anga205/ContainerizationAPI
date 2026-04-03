@@ -1,6 +1,7 @@
 package resourcemanager
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,17 @@ import (
 
 func (c *CgroupHandle) OpenFD() (int, error) {
 	return unix.Open(c.path, unix.O_DIRECTORY|unix.O_RDONLY, 0)
+}
+
+func (c *CgroupHandle) AddProcess(pid int) error {
+	cgroupWriteMu.Lock()
+	defer cgroupWriteMu.Unlock()
+
+	procsPath := filepath.Join(c.path, "cgroup.procs")
+	if err := os.WriteFile(procsPath, []byte(strconv.Itoa(pid)+"\n"), 0o644); err != nil {
+		return fmt.Errorf("failed to attach pid %d to cgroup: %w", pid, err)
+	}
+	return nil
 }
 
 func (c *CgroupHandle) ReadMemoryPeakBytes() uint64 {
