@@ -2,6 +2,48 @@
 import "../styles/global.css";
 import Topbar from "../components/topbar.astro";
 import CompilerBody from "../components/compiler-body.astro";
+
+const siteUrl = "https://compiler.anga.codes";
+const pageTitle = "Anga's Online Compiler";
+const pageDescription = "Free online compiler for C, C++, Python, and Java. Write code in Monaco editor, execute with memory and time limits, provide stdin input, and get instant output.";
+const pageUrl = `${siteUrl}/`;
+const previewImage = `${siteUrl}/anga.svg`;
+
+const softwareApplicationJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "SoftwareApplication",
+	name: pageTitle,
+	applicationCategory: "DeveloperApplication",
+	operatingSystem: "Any",
+	description: pageDescription,
+	url: pageUrl,
+	image: previewImage,
+	author: {
+		"@type": "Person",
+		name: "Anga"
+	},
+	offers: {
+		"@type": "Offer",
+		price: "0",
+		priceCurrency: "USD"
+	},
+	featureList: [
+		"Compile and run C, C++, Python, and Java code in browser",
+		"Monaco editor with syntax highlighting",
+		"Configurable memory and time limits",
+		"Standard input support",
+		"Immediate stdout and stderr output"
+	]
+};
+
+const webSiteJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "WebSite",
+	name: pageTitle,
+	url: pageUrl,
+	description: pageDescription,
+	inLanguage: "en"
+};
 ---
 
 <html lang="en">
@@ -11,16 +53,26 @@ import CompilerBody from "../components/compiler-body.astro";
 		<link rel="icon" href="/anga.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Anga's Online Compiler</title>
-		<meta name="description" content="Free online compiler for C, C++, Python, and Java. Write code in Monaco editor, execute with memory and time limits, provide stdin input, and get instant output." />
+		<title>{pageTitle}</title>
+		<link rel="canonical" href={pageUrl} />
+		<meta name="description" content={pageDescription} />
 		<meta name="keywords" content="online compiler, code editor, C compiler, C++ compiler, Python compiler, Java compiler, Monaco editor, execute code" />
 		<meta name="author" content="Anga" />
-		<meta property="og:title" content="Anga's Online Compiler" />
-		<meta property="og:description" content="Free online compiler for C, C++, Python, and Java with Monaco editor." />
+		<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+		<meta name="theme-color" content="#0a0a0a" />
+		<meta property="og:title" content={pageTitle} />
+		<meta property="og:description" content={pageDescription} />
 		<meta property="og:type" content="website" />
+		<meta property="og:url" content={pageUrl} />
+		<meta property="og:image" content={previewImage} />
+		<meta property="og:site_name" content={pageTitle} />
 		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:title" content="Anga's Online Compiler" />
-		<meta name="twitter:description" content="Free online compiler for C, C++, Python, and Java with Monaco editor." />
+		<meta name="twitter:title" content={pageTitle} />
+		<meta name="twitter:description" content={pageDescription} />
+		<meta name="twitter:image" content={previewImage} />
+		<link rel="alternate" type="text/plain" href="/llms.txt" title="LLM Discovery" />
+		<script type="application/ld+json" set:html={JSON.stringify(softwareApplicationJsonLd)}></script>
+		<script type="application/ld+json" set:html={JSON.stringify(webSiteJsonLd)}></script>
 	</head>
 	<body class="w-screen h-screen overflow-hidden">
 		<Topbar />
