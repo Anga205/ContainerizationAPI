@@ -1,7 +1,7 @@
 ---
 import { Moon, Sun } from "@lucide/astro";
 ---
-<div class="h-1/12 w-screen flex border-b border-(--border-ui) bg-(--surface-1) text-(--text-primary)">
+<div id="topbar" class="h-1/12 w-screen flex border-b border-(--border-ui) bg-(--surface-1) text-(--text-primary)">
     <div class="h-full aspect-square">
         <img class="spin-scale-hover p-[12%]" src="/anga.svg" />
     </div>
@@ -12,13 +12,13 @@ import { Moon, Sun } from "@lucide/astro";
 
     <div class="grow" />
 
-    <div class="h-full w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] px-[1vw]">
-        <label class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[14vw]">
+    <div id="topbar-controls" class="h-full w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] px-[1vw]">
+        <label id="limits-mode-wrapper" class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[14vw]">
             <span class="text-[1.3vh] uppercase tracking-wide text-(--text-muted)">Limits</span>
             <select
                 id="limits-mode"
                 class="w-full h-[3.3vh] rounded-[0.6vw] border border-(--border-ui) bg-(--surface-0) text-(--text-primary) text-[1.35vh] px-[0.7vw]"
-                onchange="document.getElementById('custom-limits-controls').classList.toggle('hidden', this.value !== 'custom')"
+                onchange="const controls=document.getElementById('custom-limits-controls');const isCustom=this.value === 'custom';controls.classList.toggle('hidden', !isCustom);controls.classList.toggle('flex', isCustom)"
             >
                 <option value="default" selected>use default (reccomended) limits</option>
                 <option value="custom">use custom limits</option>
@@ -86,7 +86,7 @@ import { Moon, Sun } from "@lucide/astro";
         </div>
     </div>
 
-    <div class="h-full w-[4.8vw] flex items-center justify-center">
+    <div id="theme-toggle-wrapper" class="h-full w-[4.8vw] flex items-center justify-center">
                 <button
                         id="theme-toggle"
                         type="button"

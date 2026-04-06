@@ -4,12 +4,12 @@ import EditorPane from "./editor-pane.astro";
 import OutputPane from "./output-pane.astro";
 ---
 
-<section class="h-11/12 w-screen bg-(--bg-app) text-(--text-primary)">
-  <div class="grid h-full w-full grid-cols-[84px_1fr]">
+<section id="compiler-body" class="h-11/12 w-screen bg-(--bg-app) text-(--text-primary)">
+  <div class="compiler-layout grid h-full w-full grid-cols-[84px_1fr]">
     <LanguageSidebar />
 
-    <div class="flex h-full min-w-0">
-      <div id="left-workspace" class="h-full" style="width: 62%">
+    <div class="workspace-shell flex h-full min-w-0">
+      <div id="left-workspace" class="workspace-pane h-full" style="width: 62%">
         <EditorPane />
       </div>
 
@@ -19,7 +19,7 @@ import OutputPane from "./output-pane.astro";
         aria-hidden="true"
       ></div>
 
-      <div id="right-workspace" class="h-full flex-1 min-w-60">
+      <div id="right-workspace" class="workspace-pane h-full flex-1 min-w-60">
         <OutputPane />
       </div>
     </div>
