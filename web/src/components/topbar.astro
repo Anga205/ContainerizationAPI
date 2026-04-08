@@ -12,8 +12,8 @@ import { Moon, Sun } from "@lucide/astro";
 
     <div class="grow" />
 
-    <div id="topbar-controls" class="h-full w-[56vw] min-w-[40vw] max-w-[66vw] flex items-center gap-[1vw] px-[1vw]">
-        <label id="limits-mode-wrapper" class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[14vw]">
+    <div id="topbar-controls" class="h-full flex-1 min-w-0 max-w-[68vw] flex items-center gap-[1vw] px-[1vw]">
+        <label id="limits-mode-wrapper" class="flex flex-col gap-[0.35vh] w-[18vw] min-w-[12vw]">
             <span class="text-[1.3vh] uppercase tracking-wide text-(--text-muted)">Limits</span>
             <select
                 id="limits-mode"
@@ -25,8 +25,8 @@ import { Moon, Sun } from "@lucide/astro";
             </select>
         </label>
 
-        <div id="custom-limits-controls" class="hidden w-[38vw] items-center gap-[1vw]">
-            <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[28vw]">
+        <div id="custom-limits-controls" class="hidden flex-1 min-w-0 flex-col items-stretch gap-[0.55vh]">
+            <label class="flex flex-col gap-[0.25vh] w-full min-w-0">
                 <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-(--text-muted)">
                     <span>Memory Limit</span>
                     <output id="memory-limit-value" for="memory-limit">32768 KB (32 MB)</output>
@@ -55,7 +55,7 @@ import { Moon, Sun } from "@lucide/astro";
                 />
             </label>
 
-            <label class="flex flex-col gap-[0.4vh] flex-1 min-w-[22vw]">
+            <label class="flex flex-col gap-[0.25vh] w-full min-w-0">
                 <div class="flex items-center justify-between text-[1.3vh] uppercase tracking-wide text-(--text-muted)">
                     <span>Time Limit</span>
                     <output id="time-limit-value" for="time-limit">5 s</output>

@@ -104,6 +104,7 @@ body {
     #topbar-controls {
         order: 3;
         width: 100%;
+        flex: 0 0 100%;
         max-width: none;
         min-width: 0;
         height: auto;
