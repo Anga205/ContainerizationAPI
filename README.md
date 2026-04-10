@@ -357,6 +357,44 @@ curl --location 'https://codeapi.anga.codes/v2/execute' \
 }
 ```
 
+---
+### GET Route: /debug/config
+---
+
+This route returns the current server configuration, including memory limits and timeout settings. This is a debug route and must be enabled via the `ENABLE_DEBUG` environment variable.
+
+#### Request format:
+
+```bash
+GET /debug/config
+```
+
+<details>
+<summary>Click to copy curl command</summary>
+
+```bash
+curl --location 'https://codeapi.anga.codes/debug/config'
+```
+
+</details>
+
+#### Response body format:
+
+```json
+{
+    "limits": {
+        "max_timeout": 60000000000,
+        "max_memory_limit": 131072,
+        "default_timeout": 5000000000,
+        "default_memory_limit": 32768
+    },
+    "globals": {
+        "ram_limit": 1048576,
+        "enable_debug_routes": false
+    }
+}
+```
+
 ## Environment Variables
 
 - `MAX_TIMEOUT`: This is the maximum timeout that a request can set, if an incoming request has a higher timeout than the value you set here, then it will ignore the request's set timeout only be executed for `MAX_TIMEOUT` time.
@@ -378,7 +416,7 @@ curl --location 'https://codeapi.anga.codes/v2/execute' \
 - `GLOBAL_RAM_LIMIT`: The total amount of RAM that is available globally to the server, cumulatively, the API will not allocate more RAM than what you define here, for example, if RAM limit if 1GB, and there are already 10 sandboxes that have reserved 100MB (either by default or by user-specification in the `max_memory` parameter) and an 11th process tries to reserve even more RAM, the server will NOT allocate that RAM
     - same format as `MAX_MEMORY_LIMIT`
     - default value is `1048576` or `1 GB`
-    - public version of this API sets this to `6 GB`
+    - public version of this API sets this to `1 GB`
 - `ENABLE_DEBUG`: if true, the server will expose debug routes (like `/check-ram`) for monitoring and debugging purposes
     - this can only be set to `true` or `false`
     - by default this is `false`

@@ -1,8 +1,8 @@
 package config
 
 type config struct {
-	Limits  limits
-	Globals globals
+	Limits  limits  `json:"limits"`
+	Globals globals `json:"globals"`
 }
 
 func (c *config) load() error {
