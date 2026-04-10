@@ -84,6 +84,24 @@ const sandboxInitSource = `#define _GNU_SOURCE
 #define AUDIT_ARCH_X86_64 0xC000003E
 #endif
 
+#ifndef AUDIT_ARCH_AARCH64
+#define AUDIT_ARCH_AARCH64 0xC00000B7
+#endif
+
+#ifndef AUDIT_ARCH_ARM
+#define AUDIT_ARCH_ARM 0x40000028
+#endif
+
+#if defined(__x86_64__)
+#define SANDBOX_AUDIT_ARCH AUDIT_ARCH_X86_64
+#elif defined(__aarch64__)
+#define SANDBOX_AUDIT_ARCH AUDIT_ARCH_AARCH64
+#elif defined(__arm__)
+#define SANDBOX_AUDIT_ARCH AUDIT_ARCH_ARM
+#else
+#error "unsupported architecture for seccomp filter"
+#endif
+
 #define DENY_SYSCALL(syscall_nr) \
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, syscall_nr, 0, 1), \
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA))
@@ -91,7 +109,7 @@ const sandboxInitSource = `#define _GNU_SOURCE
 static int install_seccomp_filter(void) {
     struct sock_filter filter[] = {
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (unsigned int)offsetof(struct seccomp_data, arch)),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+                BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SANDBOX_AUDIT_ARCH, 1, 0),
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (unsigned int)offsetof(struct seccomp_data, nr)),
 #ifdef __NR_mount
