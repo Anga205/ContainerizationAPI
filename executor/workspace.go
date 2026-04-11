@@ -117,7 +117,38 @@ func resolveJavaRuntime() (javaBin string, javaLibDir string, javaHome string, e
 
 	javaBin = resolvedJava
 	javaHome = filepath.Clean(filepath.Join(filepath.Dir(resolvedJava), ".."))
-	javaLibDir = filepath.Join(javaHome, "lib")
+
+	libDirs := []string{
+		filepath.Join(javaHome, "lib"),
+		filepath.Join(javaHome, "lib", "jli"),
+		filepath.Join(javaHome, "lib", "server"),
+		filepath.Join(javaHome, "jre", "lib"),
+		filepath.Join(javaHome, "jre", "lib", "jli"),
+		filepath.Join(javaHome, "jre", "lib", "server"),
+	}
+	if archJli, globErr := filepath.Glob(filepath.Join(javaHome, "lib", "*", "jli")); globErr == nil {
+		libDirs = append(libDirs, archJli...)
+	}
+	if archServer, globErr := filepath.Glob(filepath.Join(javaHome, "lib", "*", "server")); globErr == nil {
+		libDirs = append(libDirs, archServer...)
+	}
+	if jreArchJli, globErr := filepath.Glob(filepath.Join(javaHome, "jre", "lib", "*", "jli")); globErr == nil {
+		libDirs = append(libDirs, jreArchJli...)
+	}
+	if jreArchServer, globErr := filepath.Glob(filepath.Join(javaHome, "jre", "lib", "*", "server")); globErr == nil {
+		libDirs = append(libDirs, jreArchServer...)
+	}
+	var existingLibDirs []string
+	for _, dir := range libDirs {
+		info, statErr := os.Stat(dir)
+		if statErr == nil && info.IsDir() {
+			existingLibDirs = append(existingLibDirs, dir)
+		}
+	}
+	if len(existingLibDirs) == 0 {
+		existingLibDirs = []string{filepath.Join(javaHome, "lib")}
+	}
+	javaLibDir = strings.Join(existingLibDirs, ":")
 	return javaBin, javaLibDir, javaHome, nil
 }
 
