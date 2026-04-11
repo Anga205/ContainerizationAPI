@@ -73,7 +73,9 @@ const sandboxInitSource = `#define _GNU_SOURCE
 #include <linux/unistd.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/mount.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #ifndef SECCOMP_RET_KILL_PROCESS
@@ -209,11 +211,23 @@ static int install_seccomp_filter(void) {
     return 0;
 }
 
+static void mount_procfs_if_possible(void) {
+        if (mkdir("/proc", 0555) != 0 && errno != EEXIST) {
+                return;
+        }
+
+        if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0) {
+                return;
+        }
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "sandbox-init: missing target command\n");
         return 126;
     }
+
+        mount_procfs_if_possible();
 
     if (install_seccomp_filter() != 0) {
         perror("sandbox-init seccomp");
