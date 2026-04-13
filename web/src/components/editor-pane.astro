@@ -41,11 +41,39 @@
     cpp: "cpp"
   };
 
+  const starterCodeByLanguage: Record<string, string> = {
+    python: 'print("Hello, World!")',
+    java: [
+      "public class Main {",
+      "  public static void main(String[] args) {",
+      "    System.out.println(\"Hello, World!\");",
+      "  }",
+      "}"
+    ].join("\n"),
+    c: [
+      "#include <stdio.h>",
+      "",
+      "int main(void) {",
+      '    printf("Hello, World!\\n");',
+      "    return 0;",
+      "}"
+    ].join("\n"),
+    cpp: [
+      "#include <iostream>",
+      "",
+      "int main() {",
+      '    std::cout << "Hello, World!" << std::endl;',
+      "    return 0;",
+      "}"
+    ].join("\n")
+  };
+
   type MonacoModel = unknown;
 
   type MonacoEditorInstance = {
     getModel: () => MonacoModel;
     getValue: () => string;
+    setValue: (value: string) => void;
     layout: () => void;
   };
 
@@ -61,6 +89,8 @@
 
   let monacoRef: MonacoModule | null = null;
   let editorRef: MonacoEditorInstance | null = null;
+  let activeLanguage = "python";
+  let activeStarterCode = starterCodeByLanguage.python;
   const runtimeWindow = window as Window & {
     __compilerEditorApi?: {
       getCode: () => string;
@@ -109,10 +139,17 @@
     if (!monacoRef || !editorRef) return;
 
     const nextLanguage = monacoLanguageMap[selectedLanguage] ?? "python";
+    const nextStarterCode = starterCodeByLanguage[selectedLanguage] ?? starterCodeByLanguage.python;
     const model = editorRef.getModel();
     if (!model) return;
 
+    if (editorRef.getValue() === activeStarterCode) {
+      editorRef.setValue(nextStarterCode);
+      activeStarterCode = nextStarterCode;
+    }
+
     monacoRef.editor.setModelLanguage(model, nextLanguage);
+    activeLanguage = selectedLanguage;
   };
 
   window.addEventListener("compiler-language-change", (event) => {
@@ -137,14 +174,8 @@
     loader.init().then((monaco) => {
       monacoRef = monaco as MonacoModule;
       editorRef = monaco.editor.create(monacoContainer, {
-        value: [
-          "def solve():",
-          "    message = 'Hello from Anga compiler'",
-          "    print(message)",
-          "",
-          "solve()"
-        ].join("\n"),
-        language: "python",
+        value: activeStarterCode,
+        language: activeLanguage,
         theme: document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark",
         minimap: { enabled: false },
         fontSize: 14,
