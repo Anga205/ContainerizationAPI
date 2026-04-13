@@ -6,6 +6,9 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
     site: "https://compiler.anga.codes",
     vite: {
+        resolve: {
+            tsconfigPaths: true
+        },
         plugins: [tailwindcss()]
     }
 });
