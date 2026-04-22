@@ -1,0 +1,14 @@
+[build]
+  command = "bun run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/404"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
