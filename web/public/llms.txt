@@ -1,0 +1,41 @@
+# Anga's Online Compiler
+
+> Browser-based online compiler for C, C++, Python, and Java with Monaco editor.
+
+- Site: https://compiler.anga.codes/
+- Product: Online code compiler and runtime sandbox
+- Languages: C, C++, Python, Java
+- Cost: Free
+
+## What this app does
+
+Anga's Online Compiler lets users write, compile, and run code directly in a browser.
+It supports configurable memory and time limits, standard input, and instant stdout/stderr output.
+
+## Primary URL
+
+- https://compiler.anga.codes/
+
+## Public technical details
+
+- Frontend framework: Astro
+- Editor: Monaco Editor
+- Interface sections:
+  - Language selector
+  - Code editor pane
+  - Output pane
+  - Runtime limits controls
+
+## Usage summary
+
+1. Open the homepage.
+2. Select a language.
+3. Write or paste source code.
+4. Provide stdin if needed.
+5. Run and inspect output.
+
+## Discovery files
+
+- robots.txt: https://compiler.anga.codes/robots.txt
+- sitemap.xml: https://compiler.anga.codes/sitemap.xml
+- llms mirror: https://compiler.anga.codes/.well-known/llms.txt

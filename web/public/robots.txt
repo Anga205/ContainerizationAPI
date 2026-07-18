@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://compiler.anga.codes/sitemap.xml
+
+# LLM discovery
+Allow: /llms.txt
+Allow: /.well-known/llms.txt

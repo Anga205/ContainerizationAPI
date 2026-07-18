@@ -1,0 +1,189 @@
+<section class="h-full min-w-65 bg-(--surface-1)" data-pane="left">
+  <div class="flex h-12 border-b border-(--border-ui) bg-(--surface-0) px-2">
+    <button
+      type="button"
+      class="tab-trigger is-active h-full border-b-2 border-(--text-primary) px-4 text-sm font-semibold text-(--text-primary) transition-transform duration-150 hover:scale-105"
+      data-target="code-editor-panel"
+      aria-selected="true"
+    >
+      EDITOR
+    </button>
+    <button
+      type="button"
+      class="tab-trigger h-full border-b-2 border-transparent px-4 text-sm font-medium text-(--text-muted) transition-transform duration-150 hover:scale-105"
+      data-target="stdin-panel"
+      aria-selected="false"
+    >
+      INPUT
+    </button>
+  </div>
+
+  <div class="h-[calc(100%-3rem)]">
+    <div id="code-editor-panel" class="tab-panel h-full">
+      <div id="monaco-editor" class="h-full w-full"></div>
+    </div>
+    <div id="stdin-panel" class="tab-panel hidden h-full p-3">
+      <textarea
+        class="h-full w-full resize-none rounded-md border border-(--border-ui) bg-(--surface-0) p-3 text-sm text-(--text-primary) outline-none placeholder:text-(--text-muted) focus:border-(--accent-language)"
+        placeholder="Provide stdin input here"
+      ></textarea>
+    </div>
+  </div>
+</section>
+
+<script>
+  import loader from "@monaco-editor/loader";
+
+  const monacoLanguageMap: Record<string, string> = {
+    python: "python",
+    java: "java",
+    c: "c",
+    cpp: "cpp"
+  };
+
+  const starterCodeByLanguage: Record<string, string> = {
+    python: 'print("Hello, World!")',
+    java: [
+      "public class Main {",
+      "  public static void main(String[] args) {",
+      "    System.out.println(\"Hello, World!\");",
+      "  }",
+      "}"
+    ].join("\n"),
+    c: [
+      "#include <stdio.h>",
+      "",
+      "int main(void) {",
+      '    printf("Hello, World!\\n");',
+      "    return 0;",
+      "}"
+    ].join("\n"),
+    cpp: [
+      "#include <iostream>",
+      "",
+      "int main() {",
+      '    std::cout << "Hello, World!" << std::endl;',
+      "    return 0;",
+      "}"
+    ].join("\n")
+  };
+
+  type MonacoModel = unknown;
+
+  type MonacoEditorInstance = {
+    getModel: () => MonacoModel;
+    getValue: () => string;
+    setValue: (value: string) => void;
+    layout: () => void;
+  };
+
+  type MonacoEditorApi = {
+    setModelLanguage: (model: MonacoModel, language: string) => void;
+    setTheme: (theme: string) => void;
+    create: (container: HTMLElement, options: Record<string, unknown>) => MonacoEditorInstance;
+  };
+
+  type MonacoModule = {
+    editor: MonacoEditorApi;
+  };
+
+  let monacoRef: MonacoModule | null = null;
+  let editorRef: MonacoEditorInstance | null = null;
+  let activeLanguage = "python";
+  let activeStarterCode = starterCodeByLanguage.python;
+  const runtimeWindow = window as Window & {
+    __compilerEditorApi?: {
+      getCode: () => string;
+      getStdin: () => string;
+    };
+  };
+
+  const stdinTextarea = document.querySelector<HTMLTextAreaElement>("#stdin-panel textarea");
+
+  runtimeWindow.__compilerEditorApi = {
+    getCode: () => editorRef?.getValue() ?? "",
+    getStdin: () => stdinTextarea?.value ?? ""
+  };
+
+  const tabTriggers = document.querySelectorAll(".tab-trigger");
+  const tabPanels = document.querySelectorAll(".tab-panel");
+
+  tabTriggers.forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      const targetId = trigger.getAttribute("data-target");
+
+      tabTriggers.forEach((item) => {
+        item.classList.remove("is-active", "border-[var(--text-primary)]", "text-[var(--text-primary)]");
+        item.classList.add("border-transparent", "text-[var(--text-muted)]");
+        item.setAttribute("aria-selected", "false");
+      });
+
+      tabPanels.forEach((panel) => {
+        panel.classList.add("hidden");
+      });
+
+      trigger.classList.add("is-active", "border-[var(--text-primary)]", "text-[var(--text-primary)]");
+      trigger.classList.remove("border-transparent", "text-[var(--text-muted)]");
+      trigger.setAttribute("aria-selected", "true");
+
+      const targetPanel = document.getElementById(targetId ?? "");
+      if (targetPanel) {
+        targetPanel.classList.remove("hidden");
+      }
+    });
+  });
+
+  const monacoContainer = document.getElementById("monaco-editor");
+
+  const setEditorLanguage = (selectedLanguage: string) => {
+    if (!monacoRef || !editorRef) return;
+
+    const nextLanguage = monacoLanguageMap[selectedLanguage] ?? "python";
+    const nextStarterCode = starterCodeByLanguage[selectedLanguage] ?? starterCodeByLanguage.python;
+    const model = editorRef.getModel();
+    if (!model) return;
+
+    if (editorRef.getValue() === activeStarterCode) {
+      editorRef.setValue(nextStarterCode);
+      activeStarterCode = nextStarterCode;
+    }
+
+    monacoRef.editor.setModelLanguage(model, nextLanguage);
+    activeLanguage = selectedLanguage;
+  };
+
+  window.addEventListener("compiler-language-change", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+
+    const selectedLanguage = event.detail?.language;
+    if (typeof selectedLanguage !== "string") return;
+
+    setEditorLanguage(selectedLanguage);
+  });
+
+  window.addEventListener("compiler-theme-change", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+
+    const selectedTheme = event.detail?.theme;
+    if (selectedTheme !== "dark" && selectedTheme !== "light") return;
+
+    monacoRef?.editor.setTheme(selectedTheme === "light" ? "vs" : "vs-dark");
+  });
+
+  if (monacoContainer) {
+    loader.init().then((monaco) => {
+      monacoRef = monaco as MonacoModule;
+      editorRef = monaco.editor.create(monacoContainer, {
+        value: activeStarterCode,
+        language: activeLanguage,
+        theme: document.documentElement.dataset.theme === "light" ? "vs" : "vs-dark",
+        minimap: { enabled: false },
+        fontSize: 14,
+        automaticLayout: true,
+        tabSize: 4
+      });
+
+      window.addEventListener("resize", () => editorRef?.layout());
+    });
+  }
+</script>

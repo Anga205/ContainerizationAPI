@@ -1,0 +1,75 @@
+---
+import "devicon/devicon.min.css";
+
+const languages = [
+  { key: "python", label: "Python", iconClass: "devicon-python-plain" },
+  { key: "java", label: "Java", iconClass: "devicon-java-plain" },
+  { key: "c", label: "C", iconClass: "devicon-c-plain" },
+  { key: "cpp", label: "C++", iconClass: "devicon-cplusplus-plain" }
+];
+---
+
+<aside id="language-sidebar" class="h-full w-full border-r border-(--border-ui) bg-(--surface-0)">
+  <ul class="flex flex-col items-center gap-3 p-3">
+    {
+      languages.map((language, index) => (
+        <li>
+          <button
+            type="button"
+            class:list={[
+              "language-button group flex h-14 w-14 items-center justify-center rounded-lg border border-(--border-ui) bg-(--surface-0) text-(--text-muted) transition-transform duration-150 hover:scale-105",
+              index === 0 && "is-selected"
+            ]}
+            data-language={language.key}
+            aria-pressed={index === 0 ? "true" : "false"}
+            title={language.label}
+          >
+            <i class:list={["text-2xl", language.iconClass]} aria-hidden="true"></i>
+          </button>
+        </li>
+      ))
+    }
+  </ul>
+</aside>
+
+<script>
+  const languageButtons = document.querySelectorAll(".language-button");
+
+  languageButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      languageButtons.forEach((item) => {
+        item.classList.remove("is-selected");
+        item.setAttribute("aria-pressed", "false");
+      });
+
+      button.classList.add("is-selected");
+      button.setAttribute("aria-pressed", "true");
+
+      window.dispatchEvent(
+        new CustomEvent("compiler-language-change", {
+          detail: { language: button.getAttribute("data-language") ?? "python" }
+        })
+      );
+    });
+  });
+
+  window.dispatchEvent(
+    new CustomEvent("compiler-language-change", {
+      detail: { language: "python" }
+    })
+  );
+</script>
+
+<style>
+  aside {
+    border-right-color: var(--border-ui);
+    background: var(--surface-0);
+  }
+
+  .language-button.is-selected {
+    border-color: var(--accent-language);
+    background: var(--accent-language-soft);
+    color: var(--accent-language);
+    transform: scale(1.05);
+  }
+</style>
