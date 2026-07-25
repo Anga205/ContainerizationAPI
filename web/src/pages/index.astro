@@ -4,8 +4,8 @@ import Topbar from "../components/topbar.astro";
 import CompilerBody from "../components/compiler-body.astro";
 
 const siteUrl = "https://compiler.anga.codes";
-const pageTitle = "Anga's Online Compiler";
-const pageDescription = "Free online compiler for C, C++, Python, and Java. Write code in Monaco editor, execute with memory and time limits, provide stdin input, and get instant output.";
+const pageTitle = "Angad Bhalla's Online Compiler";
+const pageDescription = "Free online compiler for C, C++, Python, and Java. Made by Angad Bhalla (angadbhalla.com) Write code in VSCode-Like editor, execute with memory and time limits, provide stdin input, and get instant output.";
 const pageUrl = `${siteUrl}/`;
 const previewImage = `${siteUrl}/anga.svg`;
 
@@ -20,7 +20,7 @@ const softwareApplicationJsonLd = {
 	image: previewImage,
 	author: {
 		"@type": "Person",
-		name: "Anga"
+		name: "Angad Bhalla"
 	},
 	offers: {
 		"@type": "Offer",
@@ -29,7 +29,7 @@ const softwareApplicationJsonLd = {
 	},
 	featureList: [
 		"Compile and run C, C++, Python, and Java code in browser",
-		"Monaco editor with syntax highlighting",
+		"VSCode-like editor with syntax highlighting",
 		"Configurable memory and time limits",
 		"Standard input support",
 		"Immediate stdout and stderr output"
@@ -56,8 +56,8 @@ const webSiteJsonLd = {
 		<title>{pageTitle}</title>
 		<link rel="canonical" href={pageUrl} />
 		<meta name="description" content={pageDescription} />
-		<meta name="keywords" content="online compiler, code editor, C compiler, C++ compiler, Python compiler, Java compiler, Monaco editor, execute code" />
-		<meta name="author" content="Anga" />
+		<meta name="keywords" content="online compiler, code editor, C compiler, C++ compiler, Python compiler, Java compiler, VSCode-like editor, execute code" />
+		<meta name="author" content="Angad Bhalla" />
 		<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 		<meta name="theme-color" content="#0a0a0a" />
 		<meta property="og:title" content={pageTitle} />
