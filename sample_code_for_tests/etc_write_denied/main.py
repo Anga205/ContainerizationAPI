@@ -5,7 +5,7 @@ import sys
 try:
     fd = os.open("/etc/passwd", os.O_WRONLY)
 except OSError as exc:
-    if exc.errno in (errno.EACCES, errno.EPERM, errno.EROFS):
+    if exc.errno in (errno.EACCES, errno.EPERM, errno.EROFS, errno.ENOENT):
         print("write correctly denied")
         raise SystemExit(0)
     print(str(exc), file=sys.stderr)

@@ -60,6 +60,20 @@ func TestBuildSandboxCommandSetsIsolationFlags(t *testing.T) {
 	}
 }
 
+func TestBuildSandboxCommandRequiresCgroupFD(t *testing.T) {
+	ws := sandboxWorkspace{dir: "/tmp/sandbox-dir", runCommand: []string{"/bin/true"}}
+
+	withCgroup := buildSandboxCommand("", ws, 9)
+	if withCgroup.SysProcAttr == nil || !withCgroup.SysProcAttr.UseCgroupFD {
+		t.Fatal("sandbox launch must use cgroup fd attachment")
+	}
+
+	withoutCgroup := buildSandboxCommandWithoutCgroupFD("", ws)
+	if withoutCgroup.SysProcAttr == nil || withoutCgroup.SysProcAttr.UseCgroupFD {
+		t.Fatal("the non-cgroup command builder must remain unavailable to the launch path")
+	}
+}
+
 func TestBuildSandboxCommandUsesMinimalEnvironment(t *testing.T) {
 	ws := sandboxWorkspace{
 		dir:        "/tmp/sandbox-dir",

@@ -4,7 +4,6 @@ import (
 	"CodeSandboxAPI/models"
 	"CodeSandboxAPI/resourcemanager"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -91,7 +90,7 @@ func executeSandboxedBinary(req models.Request, ws sandboxWorkspace, cg *resourc
 	trace.ok("opened cgroup fd")
 	defer syscall.Close(cgroupFD)
 
-	cmd, stdoutBuf, stderrBuf, runErr := startSandboxWithFallback(req.Stdin, ws, cgroupFD, cg, trace)
+	cmd, stdoutBuf, stderrBuf, runErr := startSandboxWithCgroup(req.Stdin, ws, cgroupFD, trace)
 	if runErr != nil {
 		return models.Response{}, trace.fail("start sandbox process", runErr)
 	}
@@ -125,41 +124,14 @@ func buildCommandBuffersForCommand(cmd *exec.Cmd) (*exec.Cmd, *limitedBuffer, *l
 	return cmd, stdoutBuf, stderrBuf
 }
 
-func startSandboxWithFallback(stdin string, ws sandboxWorkspace, cgroupFD int, cg *resourcemanager.CgroupHandle, trace *executionTrace) (*exec.Cmd, *limitedBuffer, *limitedBuffer, error) {
+func startSandboxWithCgroup(stdin string, ws sandboxWorkspace, cgroupFD int, trace *executionTrace) (*exec.Cmd, *limitedBuffer, *limitedBuffer, error) {
 	cmd, stdoutBuf, stderrBuf := buildCommandBuffers(stdin, ws, cgroupFD)
 	trace.ok("built sandbox command with cgroup fd")
-	err := startSandbox(cmd)
-	if err == nil {
-		trace.ok("sandbox start succeeded with cgroup fd")
-		return cmd, stdoutBuf, stderrBuf, nil
-	}
-	trace.info("sandbox start with cgroup fd failed", err.Error())
-	if !shouldFallbackWithoutCgroupFD(err) {
-		return nil, nil, nil, err
-	}
-
-	trace.info("falling back", "retrying sandbox start without cgroup fd")
-	cmd, stdoutBuf, stderrBuf = buildCommandBuffersWithoutCgroupFD(stdin, ws)
-	trace.ok("built sandbox command without cgroup fd")
 	if err := startSandbox(cmd); err != nil {
 		return nil, nil, nil, err
 	}
-	trace.ok("sandbox start succeeded without cgroup fd")
-	if err := cg.AddProcess(cmd.Process.Pid); err != nil {
-		_ = hardKillProcessGroup(cmd.Process.Pid)
-		_ = cmd.Wait()
-		return nil, nil, nil, fmt.Errorf("failed to attach process to cgroup: %w", err)
-	}
-	trace.ok("attached process to cgroup manually")
-
+	trace.ok("sandbox start succeeded with cgroup fd")
 	return cmd, stdoutBuf, stderrBuf, nil
-}
-
-func shouldFallbackWithoutCgroupFD(err error) bool {
-	return errors.Is(err, syscall.EINVAL) ||
-		errors.Is(err, syscall.ENOSYS) ||
-		errors.Is(err, syscall.EOPNOTSUPP) ||
-		errors.Is(err, syscall.EPERM)
 }
 
 func startSandbox(cmd *exec.Cmd) error {

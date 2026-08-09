@@ -68,6 +68,7 @@ func loadSandboxInitBinary() ([]byte, error) {
 const sandboxInitSource = `#define _GNU_SOURCE
 #include <errno.h>
 #include <linux/audit.h>
+#include <linux/capability.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <linux/unistd.h>
@@ -76,6 +77,7 @@ const sandboxInitSource = `#define _GNU_SOURCE
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #ifndef SECCOMP_RET_KILL_PROCESS
@@ -195,6 +197,21 @@ static int install_seccomp_filter(void) {
 #ifdef __NR_process_vm_writev
         DENY_SYSCALL(__NR_process_vm_writev),
 #endif
+#ifdef __NR_bpf
+        DENY_SYSCALL(__NR_bpf),
+#endif
+#ifdef __NR_io_uring_setup
+        DENY_SYSCALL(__NR_io_uring_setup),
+#endif
+#ifdef __NR_perf_event_open
+        DENY_SYSCALL(__NR_perf_event_open),
+#endif
+#ifdef __NR_userfaultfd
+        DENY_SYSCALL(__NR_userfaultfd),
+#endif
+#ifdef __NR_keyctl
+        DENY_SYSCALL(__NR_keyctl),
+#endif
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
     };
 
@@ -211,14 +228,34 @@ static int install_seccomp_filter(void) {
     return 0;
 }
 
-static void mount_procfs_if_possible(void) {
+static int drop_capabilities(void) {
+#ifdef PR_CAP_AMBIENT
+        if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0) {
+                return -1;
+        }
+#endif
+        for (int capability = 0; capability <= CAP_LAST_CAP; capability++) {
+                if (prctl(PR_CAPBSET_DROP, capability, 0, 0, 0) != 0 && errno != EINVAL) {
+                        return -1;
+                }
+        }
+        struct __user_cap_header_struct header = {
+                .version = _LINUX_CAPABILITY_VERSION_3,
+                .pid = 0,
+        };
+        struct __user_cap_data_struct data[2] = {0};
+        return syscall(SYS_capset, &header, data);
+}
+
+static int mount_procfs(void) {
         if (mkdir("/proc", 0555) != 0 && errno != EEXIST) {
-                return;
+                return -1;
         }
 
         if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0) {
-                return;
+                return -1;
         }
+        return 0;
 }
 
 int main(int argc, char **argv) {
@@ -227,7 +264,15 @@ int main(int argc, char **argv) {
         return 126;
     }
 
-        mount_procfs_if_possible();
+        if (mount_procfs() != 0) {
+                perror("sandbox-init procfs");
+                return 126;
+        }
+
+        if (drop_capabilities() != 0) {
+                perror("sandbox-init capabilities");
+                return 126;
+        }
 
     if (install_seccomp_filter() != 0) {
         perror("sandbox-init seccomp");

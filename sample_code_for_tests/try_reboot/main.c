@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <errno.h>
 #include <linux/reboot.h>
 #include <stdio.h>

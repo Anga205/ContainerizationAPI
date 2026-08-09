@@ -64,6 +64,38 @@ func TestBindMountReadOnlyReturnsFirstError(t *testing.T) {
 	}
 }
 
+func TestBindMountReadOnlyRollsBackAfterRemountFailure(t *testing.T) {
+	originalMount := syscallMount
+	originalUnmount := syscallUnmount
+	t.Cleanup(func() {
+		syscallMount = originalMount
+		syscallUnmount = originalUnmount
+	})
+
+	remountErr := errors.New("remount failed")
+	var unmounted string
+	mountCalls := 0
+	syscallMount = func(source, target, fstype string, flags uintptr, data string) error {
+		mountCalls++
+		if mountCalls == 2 {
+			return remountErr
+		}
+		return nil
+	}
+	syscallUnmount = func(target string, flags int) error {
+		unmounted = target
+		return nil
+	}
+
+	err := bindMountReadOnly("/src", "/dst")
+	if !errors.Is(err, remountErr) {
+		t.Fatalf("unexpected error: got=%v want=%v", err, remountErr)
+	}
+	if unmounted != "/dst" {
+		t.Fatalf("failed remount left mount active: unmounted=%q", unmounted)
+	}
+}
+
 func TestPrepareRuntimeMountsMarksRootPrivateFirst(t *testing.T) {
 	original := syscallMount
 	t.Cleanup(func() { syscallMount = original })

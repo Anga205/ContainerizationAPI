@@ -10,6 +10,7 @@ import (
 )
 
 var syscallMount = syscall.Mount
+var syscallUnmount = syscall.Unmount
 
 type sandboxWorkspace struct {
 	dir                 string
@@ -81,6 +82,10 @@ func buildWorkspacePlan(dir, language string) (sandboxWorkspace, error) {
 		ws.extraEnv = []string{"LD_LIBRARY_PATH=" + javaLibDir, "JAVA_HOME=" + javaHome}
 		ws.useChroot = true
 		ws.runtimeMounts = defaultRuntimeMounts()
+		securityFile := filepath.Join(javaHome, "conf", "security", "java.security")
+		if resolvedSecurityFile, resolveErr := filepath.EvalSymlinks(securityFile); resolveErr == nil {
+			ws.runtimeMounts = append(ws.runtimeMounts, filepath.Dir(resolvedSecurityFile))
+		}
 	case "python3":
 		ws.sourcePath = filepath.Join(dir, "main.py")
 		ws.runCommand = []string{"/usr/bin/python3", "/main.py"}
@@ -153,7 +158,7 @@ func resolveJavaRuntime() (javaBin string, javaLibDir string, javaHome string, e
 }
 
 func defaultRuntimeMounts() []string {
-	return []string{"/usr", "/lib", "/lib64", "/bin", "/etc"}
+	return []string{"/usr", "/lib", "/lib64", "/bin"}
 }
 
 func prepareRuntimeMounts(ws *sandboxWorkspace) error {
@@ -218,6 +223,7 @@ func bindMountReadOnly(source, target string) error {
 		return err
 	}
 	if err := syscallMount("", target, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_NOSUID|syscall.MS_NODEV|syscall.MS_REC, ""); err != nil {
+		_ = syscallUnmount(target, syscall.MNT_DETACH)
 		return err
 	}
 	return nil

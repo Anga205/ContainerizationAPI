@@ -217,6 +217,27 @@ jobs:
       - name: Run hardening env isolation subtest (Python3)
         run: sudo -E go test -v -run '^TestSandboxHardeningPython3$/^sandbox environment does not expose host$' ./...
 
+  test-hostile-boundary-chain:
+    name: "Hardening: Hostile Boundary Attack Chain (C)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Run hostile boundary attack chain
+        run: sudo -E go test -v -count=3 -run '^TestSandboxHardeningC$/^hostile boundary attack chain cannot cross sandbox$' ./...
+
   test-regression-guards:
     name: "Hardening: Regression Guards"
     runs-on: ubuntu-latest
