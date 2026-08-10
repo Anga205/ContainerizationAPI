@@ -1,12 +1,14 @@
 package resourcemanager
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -43,19 +45,44 @@ func (c *CgroupHandle) ReadMemoryEvents() MemoryEvents {
 }
 
 func (c *CgroupHandle) KillAll() error {
+	if err := os.WriteFile(filepath.Join(c.path, "cgroup.kill"), []byte("1\n"), 0o644); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to kill cgroup processes: %w", err)
+	}
+
+	var killErr error
 	pids, err := readCgroupPIDs(c.path)
 	if err != nil {
 		return err
 	}
 	for _, pid := range pids {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+			killErr = errors.Join(killErr, fmt.Errorf("kill pid %d: %w", pid, err))
+		}
 	}
-	return nil
+	return killErr
 }
 
 func (c *CgroupHandle) Close() {
 	_ = c.KillAll()
-	_ = os.Remove(c.path)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		pids, err := readCgroupPIDs(c.path)
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		if err == nil && len(pids) == 0 {
+			if err := os.Remove(c.path); err == nil || errors.Is(err, os.ErrNotExist) {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		_ = c.KillAll()
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func readCgroupPIDs(path string) ([]int, error) {

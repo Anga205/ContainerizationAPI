@@ -53,6 +53,12 @@ fi
 if ! grep -q 'CLONE_NEWUSER' executor/command.go; then
   fail "executor/command.go must include CLONE_NEWUSER in Cloneflags"
 fi
+if ! grep -q 'CLONE_NEWIPC' executor/command.go; then
+  fail "executor/command.go must include CLONE_NEWIPC in Cloneflags"
+fi
+if ! grep -q 'CLONE_NEWUTS' executor/command.go; then
+  fail "executor/command.go must include CLONE_NEWUTS in Cloneflags"
+fi
 if ! grep -q 'NoNewPrivs' executor/command.go; then
   fail "executor/command.go must set NoNewPrivs (or equivalent compatibility hook)"
 fi

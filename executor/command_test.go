@@ -18,7 +18,7 @@ func TestBuildSandboxCommandSetsIsolationFlags(t *testing.T) {
 		t.Fatal("SysProcAttr must be set")
 	}
 
-	want := uintptr(syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER)
+	want := uintptr(syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC | syscall.CLONE_NEWUTS | syscall.CLONE_NEWUSER)
 	if attr.Cloneflags&want != want {
 		t.Fatalf("missing expected clone flags: got=%#x want bits=%#x", attr.Cloneflags, want)
 	}

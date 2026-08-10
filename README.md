@@ -1,6 +1,77 @@
 # ContainerizationAPI
 
+> **Security warning:** This service executes untrusted native code. Deploy it only on a dedicated Linux host whose kernel, namespaces, cgroup configuration, privileges, mounts, devices, networking, and security policy satisfy the requirements below. Docker or another container runtime is not automatically a sufficient safety guarantee. A passing CI run does not prove that a particular host is safe. Re-run the security verification after changing the kernel, runtime, privileges, networking, filesystem, or container configuration.
+
 The general idea of this project is to provide a service similar to the [CodeExecutionAPI](https://github.com/thealcodingclub/CodeExecutionAPI) by [The Alcoding Club](https://github.com/thealcodingclub) but to manually implement the containerization using cgroups, namespaces, chroot and a bunch of other unix/linux utility tools. This will help accomplish faster execution times and cut down on sandboxing overhead
+
+## Security Verification
+
+Passing application tests does not prove that the host is correctly configured for secure sandboxing. The verification suite must run on Linux with the privileges required to create user, PID, mount, network, IPC, and UTS namespaces and to configure cgroup v2. Do not deploy for untrusted users if a security test fails or is skipped unexpectedly.
+
+### Prerequisites
+
+Run these safe checks on the host:
+
+```bash
+uname -a
+test "$(uname -s)" = Linux
+test -r /proc/self/status
+test -e /sys/fs/cgroup/cgroup.controllers
+test -e /proc/self/ns/user
+test -e /proc/self/ns/pid
+command -v gcc
+command -v go
+command -v python3
+```
+
+The integration suite also requires a writable cgroup v2 hierarchy, working user namespaces, and permission to create the required namespaces. Java tests additionally require `java` and `javac`. Check active mandatory access-control policy with the host's normal tools, for example `command -v getenforce && getenforce` for SELinux or `command -v aa-status && sudo aa-status` for AppArmor. A policy mismatch is an investigation item, not a reason to disable isolation.
+
+### Run the complete security suite
+
+From the repository root, run:
+
+```bash
+sudo -E go test ./...
+sudo -E go test -race ./executor
+bash .github/scripts/check_regressions.sh
+git diff --check
+```
+
+Run the repeated hostile boundary probe with:
+
+```bash
+sudo -E go test -count=3 -run '^TestSecurityBoundaryNamespacesAndInheritedResources$' ./...
+sudo -E go test -count=3 -run '^TestSandboxHardeningC$/^hostile boundary attack chain cannot cross sandbox$' ./...
+```
+
+`sudo` is required because the test harness intentionally exercises privileged Linux isolation and cgroup operations. Never ignore a failed command, add `|| true`, or treat a skipped privileged test as success.
+
+### Sentinel-file verification
+
+Use a disposable directory, never a real secret:
+
+```bash
+sentinel_dir=$(mktemp -d)
+printf '%s\n' 'operator-sentinel-must-not-change' > "$sentinel_dir/sentinel"
+sha256sum "$sentinel_dir/sentinel"
+sudo -E go test -run '^TestSecurityBoundaryNamespacesAndInheritedResources$' ./...
+sha256sum "$sentinel_dir/sentinel"
+rm -rf "$sentinel_dir"
+```
+
+The adversarial workload attempts filesystem, descriptor, procfs, sysfs, IPC, UTS, socket, and temporary-path access. The host sentinel must still exist with the same checksum. Delete the disposable sentinel manually after verification.
+
+### Manual host-isolation checklist
+
+Review the test output and host state after the suite. Confirm that host files are unreadable and unchanged, host processes cannot be enumerated or signalled, devices and mounts cannot be manipulated, `/sys` cannot be written, Unix sockets are not reachable, host environment secrets and file descriptors are absent, the configured network policy holds, sandbox descendants disappear after termination, and sandbox temporary resources do not remain on the host.
+
+For cross-sandbox verification, run the repeated boundary probe while another terminal runs `sudo -E go test -count=10 -run '^TestSecurityBoundaryNamespacesAndInheritedResources$' ./...`. Neither run may report inherited descriptors, host process access, IPC visibility, host socket access, or host sentinel changes.
+
+### Failure interpretation
+
+Missing cgroup v2 means resource enforcement cannot be established. Missing user namespaces or insufficient privileges means namespace isolation cannot be established. Missing compiler/runtime dependencies mean the relevant workload coverage did not execute. Unexpected mounts, devices, security-module state, namespace creation errors, or seccomp failures indicate a host or implementation mismatch. Do not disable the corresponding security mechanism as a workaround; investigate or move the service to a dedicated hardened Linux VM.
+
+Generic GitHub-hosted runners cannot prove every kernel, LSM, device, mount-topology, cloud-metadata, or privileged-host-socket property. Those checks require a dedicated hardened VM with pinned kernel configuration and explicit network/device policy. See `SECURITY_TEST_MATRIX.md` for the boundary-by-boundary status and assumptions.
 
 I'm making this as part of a bigger project to host my own coding contests on a platform a little better than HackerRank. The Alcoding Club's API is fine but I need one that's more efficient and has less overhead than firejail.
 

@@ -23,7 +23,7 @@ func buildSandboxCommandWithCgroupMode(stdin string, ws sandboxWorkspace, cgroup
 
 	cmd := exec.Command(command[0], command[1:]...)
 	sysProcAttr := &syscall.SysProcAttr{
-		Cloneflags:                 syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER,
+		Cloneflags:                 syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC | syscall.CLONE_NEWUTS | syscall.CLONE_NEWUSER,
 		Setpgid:                    true,
 		UseCgroupFD:                useCgroupFD,
 		CgroupFD:                   cgroupFD,
